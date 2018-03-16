@@ -44,12 +44,15 @@ localparam OPCODE_LHB    = 4'hA;
 localparam OPCODE_LLB    = 4'hB;
 localparam OPCODE_B      = 4'hC;
 localparam OPCODE_BR     = 4'hD;
-localparam OPCODE_BPS    = 4'hE;
+localparam OPCODE_PCS    = 4'hE;
 localparam OPCODE_HLT    = 4'hF;
+
+// This is just the opcode of the current instruction (for ease of use)
+wire    [3:0]   opcode;
 
 
 // Lines going in/out of the memory modules
-wire    [15:0]  inst_mem_data_out;      // The value read from instr. memory
+wire    [15:0]  instruction;            // The value read from instr. memory
 
 wire    [15:0]  data_mem_data_out;		// The value read from data memory
 reg     [15:0]  data_mem_data_in;       // The value to write to data memory
@@ -87,7 +90,7 @@ memory1c data_mem (
 // The single cycle instruction memory
 // The memory module was provided to us
 memory1c inst_mem (
-	.data_out	(inst_mem_data_out),
+	.data_out	(instruction),
 	.data_in    (16'h0000),     // Don't need to write ever
 	.addr       (pc),
 	.enable     (1'b1),         // Always can read
@@ -111,29 +114,41 @@ RegisterFile reg_file (
 
 
   //////////////////////////////////////////////////////////////////////////////
- // Pipeline Stage 1: Instruction Fetch
+ // Register File Control
 ////////////////////////////////////////////////////////////////////////////////
 
+// This just makes it easier to write this code
+assign opcode = instruction[15:12];
 
+// To learn more about the register assignments, see "instruction_encoding.txt"
 
-  //////////////////////////////////////////////////////////////////////////////
- // Pipeline Stage 2: Instruction Decode
-////////////////////////////////////////////////////////////////////////////////
+// All instructions except SW use instruction[7:4] as src_reg_1 (if they use
+// it at all). If it's not needed, then it doesn't matter what's being read
+assign src_reg_1 = (opcode == OPCODE_SW) ? instruction[11:8] : instruction[7:4];
 
+// Compute instructions use instruction[3:0]. SW uses instruction[7:4]. No
+// other instruction uses src_reg_2, so it can just be whatever.
+// If opcode[3] == 1'b0, then it's a compute instruction.
+assign src_reg_2 = (opcode[3] == 1'b0) ? instruction[3:0] : instruction[7:4];
 
-  //////////////////////////////////////////////////////////////////////////////
- // Pipeline Stage 3: Execute
-////////////////////////////////////////////////////////////////////////////////
+// There are no instructions where dest_reg is not instruction[11:8]. Thus,
+// it'll just be up to the reg_write signal to make sure writes don't screw
+// things up
+assign dest_reg = instruction[11:8];
 
+// Only write to registers for certain instructions. These instructions are:
+//	- All compute instructions (opcode[3] == 1'b0)
+//	- LW, LHB, LLB, PCS
+// In order to simplify the logic, I used a Karnaugh map to determine a Sum of
+// Products solution to this logic
+assign reg_write =
+	(~opcode[3]) |				    // Compute instructions
+	(~opcode[2] & ~opcode[0]) |     // LW, LHB
+	(~opcode[2] & opcode[1])  |     // LHB, LLB
+	(opcode[1] & ~opcode[0]);       // LHB, PCS
 
-  //////////////////////////////////////////////////////////////////////////////
- // Pipeline Stage 4: Memory
-////////////////////////////////////////////////////////////////////////////////
+//TODO: Implement reg_write_data logic
 
-
-  //////////////////////////////////////////////////////////////////////////////
- // Pipeline Stage 5: Write Back
-////////////////////////////////////////////////////////////////////////////////
 
 
 
