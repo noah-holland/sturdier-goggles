@@ -18,7 +18,7 @@ Mark with `[initial]` when in progress change to `[x]` when completed. Feel free
 - [N] Saturation module
 - [ ] RED
 - [ ] PADDSB
-- [ ] Shifter
+- [X] Shifter
 
 ##### Memory
 - [x] LWSW
