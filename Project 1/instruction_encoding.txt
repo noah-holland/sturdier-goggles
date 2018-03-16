@@ -1,0 +1,50 @@
+Compute Instructions:
+	- instruction[15]    = 1'b0
+	- instruction[14:12] = operation to be done
+	- instruction[11:8]  = dest_reg
+	- instruction[7:4]   = src_reg_1
+	- instruction[3:0]   = src_reg_2
+
+Load Word (LW) Instruction:
+	- instruction[15:12] = OPCODE_LW
+	- instruction[11:8]  = dest_reg
+	- instruction[7:4]   = src_reg_1
+	- instruction[3:0]   = immediate offset
+	- dest_reg <- mem[src_reg_1 + (imm << 1)]
+
+Store Word (SW) Instruction:
+	- instruction[15:12] = OPCODE_SW
+	- instruction[11:8]  = src_reg_1
+	- instruction[7:4]   = src_reg_2
+	- instruction[3:0]   = immediate offset
+	- mem[src_reg_2 + (imm << 1)] <- src_reg_1
+
+Load High/Low Byte (LHB, LLB) Instructions:
+	- instruction[15:12] = OPCODE_LHB or OPCODE_LLB
+	- instruction[11:8]  = dest_reg
+	- instruction[7:0]   = immediate
+	- LHB: dest_reg <- {imm, 8'h00}
+	- LLB: dest_reg <- {8'h00, imm}
+
+Branch (B) Instruction:
+	- instruction[15:12] = OPCODE_B
+	- instruction[11:9]  = condition
+	- instruction[8:0]   = immediate offset
+	- if (condition), PC <- PC + 2 + (imm << 1)
+
+Branch Register (BR) Instruction:
+	- instruction[15:12] = OPCODE_BR
+	- instruction[11:9]  = condition
+	- instruction[7:4]   = src_reg_1
+	- if (condition), PC <- src_reg_1
+
+PC Save (PCS) Instruction:
+	- instruction[15:12] = OPCODE_PCS
+	- instruction[11:8]  = dest_reg
+	- dest_reg <- PC + 2
+
+Halt (HLT) Instruction:
+	- instruction[15:12] = OPCODE_HLT
+	- Stops running and has the CPU assert the hlt signal
+
+
