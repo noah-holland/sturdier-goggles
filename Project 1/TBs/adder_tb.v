@@ -47,8 +47,9 @@ word_CLA DUT (.A(stim[15:0]), .B(stim[31:16]), .Sum(Sum[15:0]), .Overflow(Overfl
 initial begin
 	stim = 32'b0;
 	repeat(100) begin
-	#20 if( (Sum != (stim[15:0] + stim[31:16] + stim[32]))) begin
+	#20 if( (Sum[15:0] != (stim[15:0] + stim[31:16] + stim[32]))) begin
 			$display("The output is incorrect");
+			$display("           A: %b\n           B: %b\n         Sum: %b\nExpected Sum: %b",stim[15:0], stim[31:16], Sum[15:0], stim[15:0] + stim[31:16] + stim[32]);
 			$stop;
 		end else if( AddOverflow && ~Overflow) begin
 			$display("Expected an overflow, none occurred");
@@ -62,6 +63,6 @@ initial begin
 	$finish;
 end
 
-initial $monitor("Stim:%b Sum:%b Overflow:%b",stim, Sum, Overflow );
+initial $monitor("Stim:%b Sum:%b Overflow:%b\nA: %b, B: %b, CIn: %b",stim, Sum, Overflow, stim[15:0], stim[31:16], stim[32] );
 
 endmodule

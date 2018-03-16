@@ -5,4 +5,5 @@ work/
 *.mti
 *.bak
 *.wlf
+.nfs*
 transcript
