@@ -1,0 +1,7 @@
+# Disable any work directory
+work/
+# Ignore any modelsim project files
+*.mpf
+*.mti
+*.bak
+*.wlf
