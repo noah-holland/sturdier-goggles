@@ -71,6 +71,11 @@ wire    [15:0]  src_data_1;             // The value read from src_reg_1
 wire    [15:0]  src_data_2;             // The value read from src_reg_2
 
 
+// Lines going in/out of the ALU (some are manually assigned)
+wire    [15:0]  alu_in_2;
+wire    [15:0]  alu_out;
+
+
   //////////////////////////////////////////////////////////////////////////////
  // Internal Modules
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +105,7 @@ memory1c inst_mem (
 );
 
 // The register file we made
-RegisterFile reg_file (
+register_file reg_file (
 	.clk        (clk),
 	.rst        (~rst_n),
 	.SrcReg1    (src_reg_1),
@@ -110,6 +115,14 @@ RegisterFile reg_file (
 	.DstData    (reg_write_data),
 	.SrcData1   (src_data_1),
 	.SrcData2   (src_data_2)
+);
+
+// The ALU module for addition/subtraction
+alu alu_adder (
+	.alu_in_1   (src_data_1),
+	.alu_in_2   (alu_in_2),
+	.opcode     (opcode),
+	.alu_out    (alu_out)
 );
 
 
@@ -147,10 +160,14 @@ assign reg_write =
 	(~opcode[2] & opcode[1])  |     // LHB, LLB
 	(opcode[1] & ~opcode[0]);       // LHB, PCS
 
-//TODO: Implement reg_write_data logic
-
-
-
+// The data to write to the register. It's usually the output of the ALU, so
+// that's why it's the default case
+assign reg_write_data =
+	(opcode == OPCODE_LW)  ? data_mem_data_out :
+	(opcode == OPCODE_LHB) ? {instruction[7:0], 8'h00} :
+	(opcode == OPCODE_LLB) ? {8'h00, instruction[7:0]} :
+	(opcode == OPCODE_PCS) ? pc_increment;
+	                         alu_out;
 
 endmodule
 
