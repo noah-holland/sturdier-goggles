@@ -14,10 +14,10 @@ Load Word (LW) Instruction:
 
 Store Word (SW) Instruction:
 	- instruction[15:12] = OPCODE_SW
-	- instruction[11:8]  = src_reg_1
-	- instruction[7:4]   = src_reg_2
+	- instruction[11:8]  = src_reg_2
+	- instruction[7:4]   = src_reg_1
 	- instruction[3:0]   = immediate offset
-	- mem[src_reg_2 + (imm << 1)] <- src_reg_1
+	- mem[src_reg_1 + (imm << 1)] <- src_reg_2
 
 Load High/Low Byte (LHB, LLB) Instructions:
 	- instruction[15:12] = OPCODE_LHB or OPCODE_LLB
@@ -46,5 +46,4 @@ PC Save (PCS) Instruction:
 Halt (HLT) Instruction:
 	- instruction[15:12] = OPCODE_HLT
 	- Stops running and has the CPU assert the hlt signal
-
 
