@@ -18,11 +18,11 @@ Mark with `[initial]` when in progress change to `[x]` when completed. Feel free
 - [ ] Shifter
 
 ##### Memory
-- [ ] LWSW
-- [ ] LHB/LLB (may be similar)
+- [x] LWSW
+- [x] LHB/LLB (may be similar)
 
 ##### Control
 - [ ] General cotnrol
-- [ ] Branch/Branch Register
-- [ ] PCS
-- [ ] HLT
+- [R] Branch/Branch Register
+- [x] PCS
+- [R] HLT
