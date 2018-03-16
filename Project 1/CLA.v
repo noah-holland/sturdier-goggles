@@ -16,7 +16,7 @@ four_bit_CLA_block CLA_block (.CIn(CIn), .prop(prop), .gen(gen), .carry(carrys[4
 
 assign gen = A & B;
 assign prop = A ^ B;
-
+ 
 assign Overflow = ^carrys[4:3];
 assign COut = carrys[4];
 assign carrys[0] = CIn;
