@@ -144,7 +144,7 @@ assign b_offset = {{6{instruction[8]}}, instruction[8:0], 1'b0};
 // Only update the n_flag if doing an ADD or SUB instruction. These have
 // opcodes of 0x0 and 0x1 respectively, so just check opcode[3:1] == 3'h0
 // (done with an OR reduction)
-assign next_n_flag = |opcode[3:1] ? flags[2] : n_flag;
+assign next_n_flag = ~|opcode[3:1] ? flags[2] : n_flag;
 
 
 // Only update the z_flag if doing ADD, SUB, XOR, SLL, SRA, and ROR. These
@@ -159,7 +159,7 @@ assign next_z_flag = set_z_flag ? flags[1] : z_flag;
 
 
 // Only update the v flag if doing an ADD or SUB instruction, just like N
-assign next_v_flag = |opcode[3:1] ? flags[0] : v_flag;
+assign next_v_flag = ~|opcode[3:1] ? flags[0] : v_flag;
 
 
   //////////////////////////////////////////////////////////////////////////////
