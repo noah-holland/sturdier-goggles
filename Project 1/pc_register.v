@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Module: cpu
 //
 // Class: ECE 552
@@ -155,7 +155,7 @@ assign set_z_flag =
 	(~opcode[3] & ~opcode[2] &  opcode[0]) |
 	(~opcode[3] &  opcode[2] & ~opcode[0]);
 
-assign next_z_flag = set_z_flag ? flag[1] : z_flag;
+assign next_z_flag = set_z_flag ? flags[1] : z_flag;
 
 
 // Only update the v flag if doing an ADD or SUB instruction, just like N
@@ -180,9 +180,8 @@ assign condition_met =
 
 // Assign the value of next_pc to be one of these things
 assign next_pc = (opcode == OPCODE_HLT)     ? pc :
-	((opcode == OPCODE_B)  & condition_met) ? pc_plus_offset : 
+	((opcode == OPCODE_B)  & condition_met) ? pc_plus_offset :
 	((opcode == OPCODE_BR) & condition_met) ? branch_reg_val :
 	                                          pc_plus_two;
 
 endmodule
-
