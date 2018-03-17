@@ -1,5 +1,5 @@
 module cpu_tb();
-  
+
 
    wire [15:0] PC;
    wire [15:0] Inst;           /* This should be the 15 bits of the FF that
@@ -14,7 +14,7 @@ module cpu_tb();
    wire [15:0] MemData;
 
    wire        Halt;         /* Halt executed and in Memory or writeback stage */
-        
+
    integer     inst_count;
    integer     cycle_count;
 
@@ -24,10 +24,10 @@ module cpu_tb();
    reg clk; /* Clock input */
    reg rst_n; /* (Active low) Reset input */
 
-     
 
-   cpu DUT(.clk(clk), .rst_n(rst_n), .pc_out(PC), .hlt(Halt)); /* Instantiate your processor */
-   
+
+   cpu DUT(.clk(clk), .rst_n(rst_n), .pc(PC), .hlt(Halt)); /* Instantiate your processor */
+
 
 
 
@@ -41,7 +41,7 @@ module cpu_tb();
       inst_count = 0;
       trace_file = $fopen("verilogsim.trace");
       sim_log_file = $fopen("verilogsim.log");
-      
+
    end
 
 
@@ -63,7 +63,7 @@ module cpu_tb();
     always #50 begin   // delay 1/2 clock period each time thru loop
       clk = ~clk;
     end
-	
+
     always @(posedge clk) begin
     	cycle_count = cycle_count + 1;
 	if (cycle_count > 100000) begin
@@ -122,7 +122,7 @@ module cpu_tb();
 
             $fclose(trace_file);
             $fclose(sim_log_file);
-            
+
             $finish;
          end else begin
             if (MemWrite) begin
@@ -140,9 +140,9 @@ module cpu_tb();
                          (inst_count-1),
                          PC );
             end
-         end 
+         end
       end
-      
+
    end
 
 
@@ -152,35 +152,35 @@ module cpu_tb();
 
    // Edit the example below. You must change the signal
    // names on the right hand side
-    
+
 //   assign PC = DUT.fetch0.pcCurrent; //You won't need this because it's part of the main cpu interface
-   assign Inst = DUT.fetch0.instr;
-   
-   assign RegWrite = DUT.decode0.regFile0.write;
+   assign Inst = DUT.instruction;
+
+   assign RegWrite = DUT.reg_write;
    // Is memory being read, one bit signal (1 means yes, 0 means no)
-   
-   assign WriteRegister = DUT.decode0.regFile0.writeregsel;
+
+   assign WriteRegister = DUT.dest_reg;
    // The name of the register being written to. (4 bit signal)
 
-   assign WriteData = DUT.decode0.regFile0.writedata;
+   assign WriteData = DUT.reg_write_data;
    // Data being written to the register. (16 bits)
-   
-   assign MemRead =  DUT.memory0.memRead;
+
+   assign MemRead =  DUT.memory1c_data_instance.enable;
    // Is memory being read, one bit signal (1 means yes, 0 means no)
-   
-   assign MemWrite = (DUT.memory0.memReadorWrite & DUT.memory0.memWrite);
+
+   assign MemWrite = (DUT.memory1c_data_instance.enable & DUT.memory1c_data_instance.wr);
    // Is memory being written to (1 bit signal)
-   
-   assign MemAddress = DUT.memory0.aluResult;
+
+   assign MemAddress = DUT.memory1c_data_instance.addr;
    // Address to access memory with (for both reads and writes to memory, 16 bits)
-   
-   assign MemData = DUT.memory0.writeData;
+
+   assign MemData = DUT.memory1c_data_instance.data_in;
    // Data to be written to memory for memory writes (16 bits)
-   
+
 //   assign Halt = DUT.memory0.halt; //You won't need this because it's part of the main cpu interface
    // Is processor halted (1 bit signal)
-   
+
    /* Add anything else you want here */
 
-   
+
 endmodule
