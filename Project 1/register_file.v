@@ -1,4 +1,4 @@
-module RegisterFile(input clk, rst, [3:0] SrcReg1, [3:0] SrcReg2, [3:0] DstReg,
+module register_file(input clk, rst, [3:0] SrcReg1, [3:0] SrcReg2, [3:0] DstReg,
                     input WriteReg, [15:0] DstData, inout [15:0] SrcData1, [15:0] SrcData2 );
 
 wire [15:0] ReadWl1, ReadWl2, WriteWl, Output1, Output2;
