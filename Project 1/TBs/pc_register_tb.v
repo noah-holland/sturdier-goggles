@@ -23,7 +23,7 @@ localparam OPCODE_HLT    = 4'hF;
 // Wires/regs needed for the pc_register module
 reg             clk;
 reg             rst_n;
-integer         instruction
+integer         instruction;
 // This is small on purpose, that way the PC doesn't end up at a dumb address
 reg     [13:0]  branch_reg_val;     
 // This is large on purpose, that way I can use it in a for loop
@@ -36,6 +36,10 @@ wire    [15:0]  pc_plus_two;
 // instruction
 wire    [3:0]   opcode;
 wire    [8:0]   b_offset;
+
+
+// Used to check if the branch condition is met
+wire            condition_met;
 
 
 // Used for making sure the PC is correct
@@ -69,6 +73,17 @@ always #100 clk = ~clk;
 assign opcode = instruction[15:12];
 assign condition = instruction[11:9];
 assign b_offset = {{6{instruction[8]}}, instruction[8:0], 1'b0};
+
+// Check to see if the branch condition is met
+assign condition_met =
+	(condition == 3'h0) ? ~flags[1] :
+	(condition == 3'h1) ? flags[1] :
+	(condition == 3'h2) ? ~flags[2] & ~flags[1] :
+	(condition == 3'h3) ? flags[2] :
+	(condition == 3'h4) ? flags[1] | (~flags[2] & ~flags[1]) :
+	(condition == 3'h5) ? flags[2] | flags[1] :
+	(condition == 3'h6) ? flags[0] :
+	/*condition== 3'h7*/  1'b1;
 
 // Make sure that pc_plus_two is correct each clock cycle
 always @(posedge clk) begin
