@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Module: cpu
 //
 // Class: ECE 552
@@ -72,7 +72,7 @@ wire    [15:0]  src_data_2;             // The value read from src_reg_2
 
 // Lines going in/out of the ALU (some are manually assigned)
 wire    [15:0]  alu_result;
-wire    [15:0]  flags;
+wire    [2:0]  flags;
 
 
 // Lines going in/out of the data memory
@@ -201,4 +201,3 @@ assign reg_write_data =
 
 
 endmodule
-
