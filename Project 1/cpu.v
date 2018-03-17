@@ -197,7 +197,7 @@ assign reg_write_data =
 	(opcode == OPCODE_LHB) ? {instruction[7:0], 8'h00} :
 	(opcode == OPCODE_LLB) ? {8'h00, instruction[7:0]} :
 	(opcode == OPCODE_PCS) ? pc_plus_two :
-	                         alu_out;
+	                         alu_result;
 
 
 endmodule
