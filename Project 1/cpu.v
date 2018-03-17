@@ -194,8 +194,8 @@ assign reg_write =
 // that's why it's the default case
 assign reg_write_data =
 	(opcode == OPCODE_LW)  ? data_mem_data_out :
-	(opcode == OPCODE_LHB) ? {instruction[7:0], src_reg_2[7:0]} :
-	(opcode == OPCODE_LLB) ? {src_reg_2[15:8], instruction[7:0]} :
+	(opcode == OPCODE_LHB) ? {instruction[7:0], src_data_2[7:0]} :
+	(opcode == OPCODE_LLB) ? {src_data_2[15:8], instruction[7:0]} :
 	(opcode == OPCODE_PCS) ? pc_plus_two :
 	                         alu_result;
 
