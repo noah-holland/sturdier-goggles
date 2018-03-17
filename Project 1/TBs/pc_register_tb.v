@@ -23,9 +23,9 @@ localparam OPCODE_HLT    = 4'hF;
 // Wires/regs needed for the pc_register module
 reg             clk;
 reg             rst_n;
-integer         instruction;
+reg     [15:0]  instruction;
 // This is small on purpose, that way the PC doesn't end up at a dumb address
-reg     [13:0]  branch_reg_val;     
+reg     [10:0]  branch_reg_val;     
 // This is large on purpose, that way I can use it in a for loop
 reg     [3:0]   flags;
 wire    [15:0]  pc;
@@ -35,6 +35,7 @@ wire    [15:0]  pc_plus_two;
 // Things to make my life easier so I don't have to constantly decode
 // instruction
 wire    [3:0]   opcode;
+wire    [2:0]   condition;
 wire    [8:0]   b_offset;
 
 
@@ -46,6 +47,10 @@ wire            condition_met;
 reg     [15:0]  old_pc;
 
 
+// Loop variable
+integer         i;
+
+
   //////////////////////////////////////////////////////////////////////////////
  // Instantiation of the pc_register module
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +59,7 @@ pc_register pc_register_instance (
 	.clk            (clk),
 	.rst_n          (rst_n),
 	.instruction    (instruction),
-	.branch_reg_val ({2'h0, branch_reg_val}),
+	.branch_reg_val ({5'h0, branch_reg_val}),
 	.flags          (flags[2:0]),
 	.pc             (pc),
 	.pc_plus_two    (pc_plus_two)
@@ -72,7 +77,7 @@ always #100 clk = ~clk;
 // Get these so that my life is a bit easier
 assign opcode = instruction[15:12];
 assign condition = instruction[11:9];
-assign b_offset = ({{6{instruction[8]}}, instruction[8:0], 1'b0}) + 2;
+assign b_offset = ({{6{instruction[8]}}, instruction[8:0], 1'b0}) + 16'h2;
 
 // Check to see if the branch condition is met
 assign condition_met =
@@ -87,10 +92,11 @@ assign condition_met =
 
 // Make sure that pc_plus_two is correct each clock cycle
 always @(posedge clk) begin
-	#1 if (pc + 2 != pc_plus_two) begin
+	#1 if (pc + 16'h2 != pc_plus_two) begin
 		$display("ERROR: pc_plus_two != pc + 2");
+		$display("    instr: %h", instruction);
 		$display("    pc:   %h (%d)", pc, pc);
-		$dipslay("    pc+2: %h (%d)", pc_plus_two, pc_plus_two);
+		$display("    pc+2: %h (%d)", pc_plus_two, pc_plus_two);
 		$stop;
 	end
 end
@@ -102,6 +108,7 @@ initial begin
 	instruction = 0;
 	branch_reg_val = 0;
 	flags = 0;
+	i = 0;
 
 	// Let the active-low reset be asserted for a bit
 	repeat(20) @(posedge clk);
@@ -114,23 +121,28 @@ initial begin
 		$stop;
 	end
 
-	// Test a ton of instructions except HLT because why not
-	for (instruction = 0; instruction < 16'hF000; instruction = instruction + 1)
-	begin
-		// Reset the PC if need be
-		if (pc > 16'hCFF) begin
-			#1 rst_n = 1'b0;
-			repeat(20) @(posedge clk);
-			#1 rst_n = 1'b1;
-			if (pc != 16'h0000) begin
-				$display("ERROR: PC is not 0 after reset");
-				$display("    error location code: PC_RST_1");
-				$stop;
-			end
-		end
-
+	// Test all instructions except HLT because why not
+	for (i = 0; i < 16'hF000; i = i + 9);
 		// Test all possible flags because why not
 		for (flags = 0; flags < 4'h8; flags = flags + 1) begin
+
+			// Reset the PC sometimes so it doesn't overflow much
+			if (pc > 16'hAFF) begin
+				#1 rst_n = 1'b0;
+				repeat(20) @(posedge clk);
+				#1 rst_n = 1'b1;
+				if (pc != 16'h0000) begin
+					$display("ERROR: PC is not 0 after reset");
+					$display("    error location code: PC_RST_1");
+					$stop;
+				end
+			end
+
+			// Run an ADD instruction to set the flags
+			#1 instruction = 0;
+			@(posedge clk);
+			#1 instruction = i[15:0];
+
 			// Get the current PC that will change in a bit
 			#1 old_pc = pc;
 
@@ -153,7 +165,7 @@ initial begin
 					$display("    b_reg:  %h", branch_reg_val);
 					$display("    b_off:  %h (%d)", b_offset, b_offset);
 					$stop;
-				end else if (pc != old_pc + 2 + b_offset) begin
+				end else if (condition_met && (pc != old_pc + b_offset)) begin
 					$display("ERROR: Bad PC after taken B instruction");
 					$display("    instruction: %h", instruction);
 					$display("    cond:   %b", condition);
@@ -175,7 +187,7 @@ initial begin
 					$display("    b_reg:  %h", branch_reg_val);
 					$display("    b_off:  %h (%d)", b_offset, b_offset);
 					$stop;
-				end else if (pc != branch_reg_val) begin
+				end else if (condition_met && (pc != branch_reg_val)) begin
 					$display("ERROR: Bad PC after taken BR instruction");
 					$display("    instruction: %h", instruction);
 					$display("    cond:   %b", condition);
