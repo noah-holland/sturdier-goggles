@@ -57,12 +57,12 @@ assign saturated_adder = Overflow & COut ? 16'h8000 :
                          Overflow        ? 16'h7FFF :
                          adder_sum;
 
-assign alu_result = OPCODE_RED    ? padder_sum :
-                    OPCODE_PADDSB ? padder_sum :
-                    OPCODE_XOR    ? xor_out    :
-                    OPCODE_SLL    ? shift_out  :
-                    OPCODE_SRA    ? shift_out  :
-                    OPCODE_ROR    ? shift_out  :
+assign alu_result = opcode == OPCODE_RED    ? padder_sum :
+                    opcode == OPCODE_PADDSB ? padder_sum :
+                    opcode == OPCODE_XOR    ? xor_out    :
+                    opcode == OPCODE_SLL    ? shift_out  :
+                    opcode == OPCODE_SRA    ? shift_out  :
+                    opcode == OPCODE_ROR    ? shift_out  :
                     saturated_adder;
 
 endmodule // alu
