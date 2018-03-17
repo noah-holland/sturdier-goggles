@@ -25,7 +25,7 @@ reg             clk;
 reg             rst_n;
 reg     [15:0]  instruction;
 // This is small on purpose, that way the PC doesn't end up at a dumb address
-reg     [10:0]  branch_reg_val;     
+reg     [15:0]  branch_reg_val;     
 // This is large on purpose, that way I can use it in a for loop
 reg     [3:0]   flags;
 wire    [15:0]  pc;
@@ -36,7 +36,7 @@ wire    [15:0]  pc_plus_two;
 // instruction
 wire    [3:0]   opcode;
 wire    [2:0]   condition;
-wire    [8:0]   b_offset;
+wire    [15:0]   b_offset;
 
 
 // Used to check if the branch condition is met
@@ -122,7 +122,7 @@ initial begin
 	end
 
 	// Test all instructions except HLT because why not
-	for (i = 0; i < 16'hF000; i = i + 9);
+	for (i = 0; i < 16'hF000; i = i + 9) begin
 		// Test all possible flags because why not
 		for (flags = 0; flags < 4'h8; flags = flags + 1) begin
 
