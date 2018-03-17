@@ -91,7 +91,7 @@ pc_register pc_register_instance (
 	.clk            (clk),
 	.rst_n          (rst_n),
 	.instruction    (instruction),
-	.branch_reg_val (src_reg_1),
+	.branch_reg_val (src_data_1),
 	.flags          (flags),
 	.pc             (pc),
 	.pc_plus_two    (pc_plus_two)
@@ -135,8 +135,8 @@ alu alu_instance (
 // The single cycle data memory
 // The memory module was provided to us
 memory1c memory1c_data_instance (
-	.data_out	(data_mem_data_out),
-	.data_in    (src_reg_2),            // src_reg_2 is the only thing stored
+	.data_out	  (data_mem_data_out),
+	.data_in    (src_data_2),           // src_reg_2 is the only thing stored
 	.addr       (alu_result),           // The address always comes from the ALU
 	.enable     (~hlt),                 // Always read until hlt is asserted
 	.wr         (data_mem_wr),
@@ -194,8 +194,8 @@ assign reg_write =
 // that's why it's the default case
 assign reg_write_data =
 	(opcode == OPCODE_LW)  ? data_mem_data_out :
-	(opcode == OPCODE_LHB) ? {instruction[7:0], 8'h00} :
-	(opcode == OPCODE_LLB) ? {8'h00, instruction[7:0]} :
+	(opcode == OPCODE_LHB) ? {instruction[7:0], src_reg_2[7:0]} :
+	(opcode == OPCODE_LLB) ? {src_reg_2[15:8], instruction[7:0]} :
 	(opcode == OPCODE_PCS) ? pc_plus_two :
 	                         alu_result;
 
