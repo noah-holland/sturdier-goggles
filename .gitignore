@@ -7,3 +7,7 @@ work/
 *.wlf
 .nfs*
 transcript
+verilogsim.log
+verilogsim.trace
+dump.vcd
+*.img
