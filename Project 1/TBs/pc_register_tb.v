@@ -43,7 +43,7 @@ wire            condition_met;
 
 
 // Used for making sure the PC is correct
-wire    [15:0]  old_pc;
+reg     [15:0]  old_pc;
 
 
   //////////////////////////////////////////////////////////////////////////////
@@ -89,6 +89,8 @@ assign condition_met =
 always @(posedge clk) begin
 	#1 if (pc + 2 != pc_plus_two) begin
 		$display("ERROR: pc_plus_two != pc + 2");
+		$display("    pc:   %h (%d)", pc, pc);
+		$dipslay("    pc+2: %h (%d)", pc_plus_two, pc_plus_two);
 		$stop;
 	end
 end
@@ -112,9 +114,21 @@ initial begin
 		$stop;
 	end
 
-	// Test all possible instructions except HLT because why not
+	// Test a ton of instructions except HLT because why not
 	for (instruction = 0; instruction < 16'hF000; instruction = instruction + 1)
 	begin
+		// Reset the PC if need be
+		if (pc > 16'hCFF) begin
+			#1 rst_n = 1'b0;
+			repeat(20) @(posedge clk);
+			#1 rst_n = 1'b1;
+			if (pc != 16'h0000) begin
+				$display("ERROR: PC is not 0 after reset");
+				$display("    error location code: PC_RST_1");
+				$stop;
+			end
+		end
+
 		// Test all possible flags because why not
 		for (flags = 0; flags < 4'h8; flags = flags + 1) begin
 			// Get the current PC that will change in a bit
@@ -150,7 +164,7 @@ initial begin
 					$display("    b_off:  %h (%d)", b_offset, b_offset);
 					$stop;
 				end
-			end else if (opcode = OPCODE_BR) begin
+			end else if (opcode == OPCODE_BR) begin
 				if (!condition_met && (pc != old_pc + 2)) begin
 					$display("ERROR: Bad PC after not-taken BR instruction");
 					$display("    instruction: %h", instruction);
@@ -217,7 +231,7 @@ initial begin
 	// Make sure pc is at 0x0000
 	if (pc != 16'h0000) begin
 		$display("ERROR: PC is not 0 after reset");
-		$display("    error location code: PC_RST_1");
+		$display("    error location code: PC_RST_2");
 		$stop;
 	end
 
