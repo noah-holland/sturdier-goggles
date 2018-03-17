@@ -72,7 +72,7 @@ always #100 clk = ~clk;
 // Get these so that my life is a bit easier
 assign opcode = instruction[15:12];
 assign condition = instruction[11:9];
-assign b_offset = {{6{instruction[8]}}, instruction[8:0], 1'b0};
+assign b_offset = ({{6{instruction[8]}}, instruction[8:0], 1'b0}) + 2;
 
 // Check to see if the branch condition is met
 assign condition_met =
