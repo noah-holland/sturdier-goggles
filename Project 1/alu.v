@@ -1,4 +1,4 @@
-module alu (input  [3:0] src_data_1, src_data_2, immediate, opcode,
+module alu (input  [15:0] src_data_1, src_data_2, [3:0] immediate, opcode,
             output [15:0] alu_result, [2:0] flags);
 
 localparam OPCODE_RED    = 4'h2;
@@ -47,7 +47,7 @@ PSA_16bit parallel_adder (
 Shifter shifter (
   .Shift_Out   (shift_out),
   .Shift_In    (src_data_1),
-  .Shift_Val   (src_data_2),
+  .Shift_Val   (immediate),
   .Mode        (opcode[1:0])
 );
 
