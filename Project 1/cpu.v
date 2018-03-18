@@ -81,6 +81,10 @@ wire            data_mem_wr;            // Enables memory writing. Requires
                                         //     data_mem_enable to be asserted
 
 
+// Line used to control the hlt DFF
+wire            next_hlt;
+
+
   //////////////////a////////////////////////////////////////////////////////////
  // Internal Modules
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,13 +139,22 @@ alu alu_instance (
 // The single cycle data memory
 // The memory module was provided to us
 memory1c memory1c_data_instance (
-	.data_out	  (data_mem_data_out),
+	.data_out   (data_mem_data_out),
 	.data_in    (src_data_2),           // src_reg_2 is the only thing stored
 	.addr       (alu_result),           // The address always comes from the ALU
 	.enable     (~hlt),                 // Always read until hlt is asserted
 	.wr         (data_mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n)
+);
+
+// A D-Flip-Flop used to control the hlt signal
+dff hlt_instance (
+	.q      (hlt),
+	.d      (next_hlt),
+	.wen    (1'b1),
+	.clk    (clk),
+	.rst    (~rst_n)
 );
 
 
@@ -154,7 +167,7 @@ assign opcode = instruction[15:12];
 
 // If the current instruction is HLT, then assert hlt. Since the opcode for
 // HLT is 4'hF, I can just use an AND reduction on the opcode
-assign hlt =
+assign next_hlt =
 	~rst_n  ? 1'b0 :
 	&opcode ? 1'b1 :
 	          hlt;
