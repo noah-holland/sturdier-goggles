@@ -1,6 +1,8 @@
 module alu (input  [15:0] src_data_1, src_data_2, [3:0] immediate, opcode,
             output [15:0] alu_result, [2:0] flags);
 
+// localparams for readability
+localparam OPCODE_SUB    = 4'h1;
 localparam OPCODE_RED    = 4'h2;
 localparam OPCODE_XOR    = 4'h3;
 localparam OPCODE_SLL    = 4'h4;
@@ -26,7 +28,8 @@ assign b = opcode[3] ? { {11{immediate[3]}}, immediate, 1'b0} :
            opcode[0] ? ~src_data_2 :
                        src_data_2;
 
-assign adder_cin = opcode[0] & ~opcode[3] ? 1'b1 : 1'b0;
+// We want cin to the adder to be 1 for subtracts and 0 for everything else
+assign adder_cin = opcode == OPCODE_SUB ? 1'b1 : 1'b0;
 
 word_CLA adder (
   .CIn         (adder_cin),
@@ -53,10 +56,13 @@ Shifter shifter (
 
 assign xor_out = src_data_1 ^ src_data_2;
 
+// If there was overflow and COut is asserted we underflowed
+// Otherwise we overflowed.
 assign saturated_adder = Overflow & COut ? 16'h8000 :
                          Overflow        ? 16'h7FFF :
                          adder_sum;
 
+// Hook up the output based on the opcode, default to the saturated add.
 assign alu_result = opcode == OPCODE_RED    ? padder_sum :
                     opcode == OPCODE_PADDSB ? padder_sum :
                     opcode == OPCODE_XOR    ? xor_out    :
