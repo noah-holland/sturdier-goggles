@@ -15,8 +15,8 @@ Register register[15:0] (.clk(clk), .rst(rst), .D(DstData), .WriteReg(WriteWl),
 // assign SrcData1 = SrcReg1 == DstReg ? DstData : Output1;
 // assign SrcData2 = SrcReg2 == DstReg ? DstData : Output2;
 
-assign SrcData1 = Output1;
-assign SrcData2 = Output2;
+assign SrcData1 = SrcReg1 == 3'b0 ? 15'b0 : Output1;
+assign SrcData2 = SrcReg2 == 3'b0 ? 15'b0 : Output2;
 
 endmodule
 
