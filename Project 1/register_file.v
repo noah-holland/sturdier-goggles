@@ -11,9 +11,12 @@ Register register[15:0] (.clk(clk), .rst(rst), .D(DstData), .WriteReg(WriteWl),
                          .ReadEnable1(ReadWl1), .ReadEnable2(ReadWl2),
                          .BitLine1(Output1), .BitLine2(Output2));
 
+// Disable register forwarding
+// assign SrcData1 = SrcReg1 == DstReg ? DstData : Output1;
+// assign SrcData2 = SrcReg2 == DstReg ? DstData : Output2;
 
-assign SrcData1 = SrcReg1 == DstReg ? DstData : Output1;
-assign SrcData2 = SrcReg2 == DstReg ? DstData : Output2;
+assign SrcData1 = Output1;
+assign SrcData2 = Output2;
 
 endmodule
 
