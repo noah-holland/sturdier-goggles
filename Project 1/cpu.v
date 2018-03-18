@@ -81,7 +81,7 @@ wire            data_mem_wr;            // Enables memory writing. Requires
                                         //     data_mem_enable to be asserted
 
 
-  //////////////////////////////////////////////////////////////////////////////
+  //////////////////a////////////////////////////////////////////////////////////
  // Internal Modules
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,7 +154,10 @@ assign opcode = instruction[15:12];
 
 // If the current instruction is HLT, then assert hlt. Since the opcode for
 // HLT is 4'hF, I can just use an AND reduction on the opcode
-assign hlt = &opcode;
+assign hlt =
+	~rst_n  ? 1'b0 :
+	&opcode ? 1'b1 :
+	          hlt;
 
 // Only write to memory for SW instructions
 assign data_mem_wr = (opcode == OPCODE_SW) ? 1'b1 : 1'b0;
@@ -182,13 +185,13 @@ assign dest_reg = instruction[11:8];
 
 // Only write to registers for certain instructions. These instructions are
 // LW, LHB, LLB, PCS, and all compute instructions (opcode[3] == 1'b0).
-// In order to simplify the logic, I used a Karnaugh map to determine a Sum of
-// Products solution to this logic
+// In order to simplify the logic, I used a Karnaugh map to determine a Product
+// of Sums solution to this logic
 assign reg_write =
-	(~opcode[3]) |				    // Compute instructions
-	(~opcode[2] & ~opcode[0]) |     // LW, LHB
-	(~opcode[2] & opcode[1])  |     // LHB, LLB
-	(opcode[1] & ~opcode[0]);       // LHB, PCS
+	(~hlt) &
+	(~opcode[3] |  opcode[1] | ~opcode[0]) &
+	(~opcode[3] | ~opcode[2] |  opcode[1]) &
+	(~opcode[3] | ~opcode[2] | ~opcode[0]);
 
 // The data to write to the register. It's usually the output of the ALU, so
 // that's why it's the default case
