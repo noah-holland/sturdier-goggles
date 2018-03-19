@@ -82,7 +82,7 @@ wire            data_mem_wr;            // Enables memory writing. Requires
 
 
 // Line used to control the hlt DFF
-wire            next_hlt;
+wire            old_hlt;
 
 
   //////////////////a////////////////////////////////////////////////////////////
@@ -107,7 +107,7 @@ memory1c memory1c_instruction_instance (
 	.data_out	(instruction),
 	.data_in    (16'h0000),     // Don't need to write ever
 	.addr       (pc),
-	.enable     (~hlt),         // Always read until hlt is asserted
+	.enable     (~old_hlt),         // Always read until hlt is asserted
 	.wr         (1'b0),         // Don't need to write ever
 	.clk        (clk),
 	.rst        (~rst_n)
@@ -142,7 +142,7 @@ memory1c memory1c_data_instance (
 	.data_out   (data_mem_data_out),
 	.data_in    (src_data_2),           // src_reg_2 is the only thing stored
 	.addr       (alu_result),           // The address always comes from the ALU
-	.enable     (~hlt),                 // Always read until hlt is asserted
+	.enable     (~old_hlt),                 // Always read until hlt is asserted
 	.wr         (data_mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n)
@@ -150,8 +150,8 @@ memory1c memory1c_data_instance (
 
 // A D-Flip-Flop used to control the hlt signal
 dff hlt_instance (
-	.q      (hlt),
-	.d      (next_hlt),
+	.q      (old_hlt),
+	.d      (hlt),
 	.wen    (1'b1),
 	.clk    (clk),
 	.rst    (~rst_n)
@@ -167,10 +167,10 @@ assign opcode = instruction[15:12];
 
 // If the current instruction is HLT, then assert hlt. Since the opcode for
 // HLT is 4'hF, I can just use an AND reduction on the opcode
-assign next_hlt =
+assign hlt =
 	~rst_n  ? 1'b0 :
 	&opcode ? 1'b1 :
-	          hlt;
+	        old_hlt;
 
 // Only write to memory for SW instructions
 assign data_mem_wr = (opcode == OPCODE_SW) ? 1'b1 : 1'b0;
@@ -201,7 +201,6 @@ assign dest_reg = instruction[11:8];
 // In order to simplify the logic, I used a Karnaugh map to determine a Product
 // of Sums solution to this logic
 assign reg_write =
-	(~hlt) &
 	(~opcode[3] |  opcode[1] | ~opcode[0]) &
 	(~opcode[3] | ~opcode[2] |  opcode[1]) &
 	(~opcode[3] | ~opcode[2] | ~opcode[0]);
