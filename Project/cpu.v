@@ -18,7 +18,7 @@
 
 // NO IMPLICIT DECLARATIONS BECAUSE THOSE ARE HORRIBLE
 // ^bump
-`default_nettype none
+//`default_nettype none
 
   //////////////////////////////////////////////////////////////////////////////
  // Declaration of the module and internal signals
@@ -64,8 +64,8 @@ wire    [63:0]  if_id_register_output;
 wire    [3:0]   id_opcode;
 wire    [15:0]  id_instruction;
 wire    [15:0]  id_pc_plus_two;
-wire    [15:0]  id_src_reg_1;
-wire    [15:0]  id_src_reg_2;
+wire    [3:0]   id_src_reg_1;
+wire    [3:0]   id_src_reg_2;
 wire    [15:0]  id_src_data_1;
 wire    [15:0]  id_src_data_2;
 wire    [3:0]   id_alu_immediate;
@@ -121,10 +121,10 @@ pc_register pc_register_instance (
 	.clk            (clk),
 	.rst_n          (rst_n),
 	.instruction    (if_instruction),
-	.branch_reg_val (src_data_1),
-	.flags          (flags),
+	.branch_reg_val (ex_src_data_1),
+	.flags          (ex_alu_flags),
 	.pc             (pc),
-	.pc_plus_two    (pc_plus_two)
+	.pc_plus_two    (if_pc_plus_two)
 );
 
 
@@ -148,6 +148,7 @@ assign if_id_register_input[31:16] = if_instruction;
 pipeline_register if_id_register_instance (
 	.stall      (),
 	.flush      (),
+	.clk        (clk),
 	.opcode_in  (if_instruction[15:12]),
 	.opcode_out (id_opcode),
 	.inputs     (if_id_register_input),
@@ -227,6 +228,7 @@ assign id_ex_register_input[63:56] = id_load_half_byte;
 pipeline_register id_ex_register_instance (
 	.stall      (),
 	.flush      (),
+	.clk        (clk),
 	.opcode_in  (id_opcode),
 	.opcode_out (ex_opcode),
 	.inputs     (id_ex_register_input),
@@ -270,6 +272,7 @@ assign ex_mem_register_input[62:55] = ex_load_half_byte;
 pipeline_register ex_mem_register_instance (
 	.stall      (),
 	.flush      (),
+	.clk        (clk),
 	.opcode_in  (ex_opcode),
 	.opcode_out (mem_opcode),
 	.inputs     (ex_mem_register_input),
@@ -324,6 +327,7 @@ assign mem_wb_register_input[19:16] = mem_dest_reg;
 pipeline_register mem_wb_register_instance (
 	.stall      (),
 	.flush      (),
+	.clk        (clk),
 	.opcode_in  (mem_opcode),
 	.opcode_out (wb_opcode),
 	.inputs     (mem_wb_register_input),
