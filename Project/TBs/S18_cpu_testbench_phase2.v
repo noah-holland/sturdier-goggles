@@ -1,5 +1,5 @@
 module cpu_ptb();
-  
+
 
    wire [15:0] PC;
    wire [15:0] Inst;           /* This should be the 15 bits of the FF that
@@ -15,7 +15,7 @@ module cpu_ptb();
    wire [15:0] MemDataOut;	/* Written to Memory */
 
    wire        Halt;         /* Halt executed and in Memory or writeback stage */
-        
+
    integer     inst_count;
    integer     cycle_count;
 
@@ -25,10 +25,10 @@ module cpu_ptb();
    reg clk; /* Clock input */
    reg rst_n; /* (Active low) Reset input */
 
-     
 
-   cpu DUT(.clk(clk), .rst_n(rst_n), .pc_out(PC), .hlt(Halt)); /* Instantiate your processor */
-   
+
+   cpu DUT(.clk(clk), .rst_n(rst_n), .pc(PC), .hlt(Halt)); /* Instantiate your processor */
+
 
 
 
@@ -42,7 +42,7 @@ module cpu_ptb();
       inst_count = 0;
       trace_file = $fopen("verilogsim.ptrace");
       sim_log_file = $fopen("verilogsim.plog");
-      
+
    end
 
 
@@ -64,7 +64,7 @@ module cpu_ptb();
     always #50 begin   // delay 1/2 clock period each time thru loop
       clk = ~clk;
     end
-	
+
     always @(posedge clk) begin
     	cycle_count = cycle_count + 1;
 	if (cycle_count > 100000) begin
@@ -101,7 +101,7 @@ module cpu_ptb();
          if (RegWrite) begin
             $fdisplay(trace_file,"REG: %d VALUE: 0x%04x",
                       WriteRegister,
-                      WriteData );            
+                      WriteData );
          end
          if (MemRead) begin
             $fdisplay(trace_file,"LOAD: ADDR: 0x%04x VALUE: 0x%04x",
@@ -114,16 +114,16 @@ module cpu_ptb();
          end
          if (Halt) begin
             $fdisplay(sim_log_file, "SIMLOG:: Processor halted\n");
-            $fdisplay(sim_log_file, "SIMLOG:: sim_cycles %d\n", DUT.c0.cycle_count);
+            $fdisplay(sim_log_file, "SIMLOG:: sim_cycles %d\n", cycle_count);
             $fdisplay(sim_log_file, "SIMLOG:: inst_count %d\n", inst_count);
 
             $fclose(trace_file);
             $fclose(sim_log_file);
 	    #5;
             $finish;
-         end 
+         end
       end
-      
+
    end
    /* Assign internal signals to top level wires
       The internal module names and signal names will vary depending
@@ -131,43 +131,43 @@ module cpu_ptb();
 
    // Edit the example below. You must change the signal
    // names on the right hand side
-    
+
 //   assign PC = DUT.fetch0.pcCurrent; //You won't need this because it's part of the main cpu interface
-   
+
 //   assign Halt = DUT.memory0.halt; //You won't need this because it's part of the main cpu interface
    // Is processor halted (1 bit signal)
-   
 
-   assign Inst = DUT.p0.instr;
+
+   assign Inst = DUT.if_instruction;
    //Instruction fetched in the current cycle
-   
-   assign RegWrite = DUT.p0.regWrite;
+
+   assign RegWrite = DUT.wb_reg_write;
    // Is register file being written to in this cycle, one bit signal (1 means yes, 0 means no)
-  
-   assign WriteRegister = DUT.p0.DstwithJmout;
+
+   assign WriteRegister = DUT.wb_dest_reg;
    // If above is true, this should hold the name of the register being written to. (4 bit signal)
-   
-   assign WriteData = DUT.p0.wData;
+
+   assign WriteData = DUT.wb_reg_write_value;
    // If above is true, this should hold the Data being written to the register. (16 bits)
-   
-   assign MemRead =  (DUT.p0.memRxout & ~DUT.p0.notdonem);
+
+   assign MemRead =  (DUT.memory1c_data_instance.enable);
    // Is memory being read from, in this cycle. one bit signal (1 means yes, 0 means no)
-   
-   assign MemWrite = (DUT.p0.memWxout & ~DUT.p0.notdonem);
+
+   assign MemWrite = (DUT.memory1c_data_instance.enable & DUT.memory1c_data_instance.wr);
    // Is memory being written to, in this cycle (1 bit signal)
-   
-   assign MemAddress = DUT.p0.data1out;
+
+   assign MemAddress = DUT.memory1c_data_instance.addr;
    // If there's a memory access this cycle, this should hold the address to access memory with (for both reads and writes to memory, 16 bits)
-   
-   assign MemDataIn = DUT.p0.data2out;
+
+   assign MemDataIn = DUT.memory1c_data_instance.data_in;
    // If there's a memory write in this cycle, this is the Data being written to memory (16 bits)
-   
-   assign MemDataOut = DUT.p0.readData;
+
+   assign MemDataOut = DUT.memory1c_data_instance.data_out;
    // If there's a memory read in this cycle, this is the data being read out of memory (16 bits)
 
 
 
    /* Add anything else you want here */
 
-   
+
 endmodule
