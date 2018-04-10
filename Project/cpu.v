@@ -3,7 +3,7 @@
 // Module: cpu
 //
 // Class: ECE 552
-// Assignment: Project 1
+// Assignment: Project 2
 //
 // Inputs:
 //   clk    System clock
@@ -85,8 +85,59 @@ wire            data_mem_wr;            // Enables memory writing. Requires
 wire            old_hlt;
 
 
-  //////////////////a////////////////////////////////////////////////////////////
- // Internal Modules
+
+
+wire    [15:0]  if_instruction;
+wire    [15:0]  if_pc;
+wire    [15:0]  if_pc_plus_two;
+
+wire    [31:0]  if_id_register_input;
+wire    [31:0]  if_id_register_output;
+
+wire    [3:0]   id_opcode;
+wire    [15:0]  id_src_reg_1;
+wire    [15:0]  id_src_reg_2;
+wire    [15:0]  id_pc_plus_two;
+wire    [15:0]  id_src_data_1;
+wire    [15:0]  id_src_data_2;
+wire    [15:0]  id_alu_immediate;
+wire    [3:0]   id_dest_reg;
+
+wire    [55:0]  id_ex_register_input;
+wire    [55:0]  id_ex_register_output;
+
+wire    [3:0]   ex_opcode;
+wire    [15:0]  ex_pc_plus_two;
+wire    [15:0]  ex_src_data_1;
+wire    [15:0]  ex_src_data_2;
+wire    [3:0]   ex_alu_immediate;
+wire    [15:0]  ex_alu_result;
+wire    [2:0]   ex_flags;
+wire    [3:0]   ex_dest_reg;
+
+wire    [54:0]  ex_mem_register_input;
+wire    [54:0]  ex_mem_register_output;
+
+wire    [3:0]   mem_opcode;
+wire    [15:0]  mem_data_out;
+wire    [15:0]  mem_data_in;		// Gets ex_src_data_2
+wire    [15:0]  mem_addr;			// Gets ex_alu_result
+wire            mem_enable;
+wire            mem_wr;
+wire    [3:0]   mem_dest_reg;
+wire    [15:0]  mem_reg_write_value;
+
+wire    [19:0]  mem_wb_register_input;
+wire    [19:0]  mem_wb_register_output;
+
+wire    [3:0]   wb_opcode;
+wire    [3:0]   wb_dest_reg;
+wire    [15:0]  wb_reg_write_value;
+
+
+
+  //////////////////////////////////////////////////////////////////////////////
+ // Pipeline Stage 1: Instrucgtion Fetch
 ////////////////////////////////////////////////////////////////////////////////
 
 // The PC register module, which is in charge of maintaining the current PC
@@ -104,49 +155,108 @@ pc_register pc_register_instance (
 // The single cycle instruction memory
 // The memory module was provided to us
 memory1c memory1c_instruction_instance (
-	.data_out	(instruction),
-	.data_in    (16'h0000),     // Don't need to write ever
-	.addr       (pc),
-	.enable     (~old_hlt),         // Always read until hlt is asserted
-	.wr         (1'b0),         // Don't need to write ever
+	.data_out	(if_instruction),
+	.data_in    (16'h0000),                 // Don't need to write ever
+	.addr       (if_pc),
+	.enable     (~old_hlt),                 // Always read until hlt is asserted
+	.wr         (1'b0),                     // Don't need to write ever
 	.clk        (clk),
 	.rst        (~rst_n)
 );
+
+// The IF/ID Pipeline Register
+pipeline_register if_id_register_instance (
+	.stall      (),
+	.flush      (),
+	.opcode_in  (if_instruction[15:12]),
+	.opcode_out (id_opcode),
+	.inputs     ({if_pc_plus_two, if_instruction}),
+	.outputs    (if_id_register_output)
+);
+
+
+  //////////////////////////////////////////////////////////////////////////////
+ // Pipeline Stage 2: Instrucgtion Decode
+////////////////////////////////////////////////////////////////////////////////
 
 // The register file we made
 register_file register_file_instance (
 	.clk        (clk),
 	.rst        (~rst_n),
-	.SrcReg1    (src_reg_1),
-	.SrcReg2    (src_reg_2),
-	.DstReg     (dest_reg),
-	.WriteReg   (reg_write),
-	.DstData    (reg_write_data),
-	.SrcData1   (src_data_1),
-	.SrcData2   (src_data_2)
+	.SrcReg1    (id_src_reg_1),
+	.SrcReg2    (id_src_reg_2),
+	.DstReg     (wb_dest_reg),
+	.WriteReg   (wb_reg_write),
+	.DstData    (wb_reg_write_value),
+	.SrcData1   (id_src_data_1),
+	.SrcData2   (id_src_data_2)
 );
+
+// The ID/EX Pipeline Register
+pipeline_register id_ex_register_instance (
+	.stall      (),
+	.flush      (),
+	.opcode_in  (id_opcode),
+	.opcode_out (ex_opcode),
+	.inputs     ({id_pc_plus_two, id_src_data_1, id_src_data_2, id_alu_immediate, id_dest_reg}),
+	.outputs    (id_ex_register_output)
+);
+
+
+  //////////////////////////////////////////////////////////////////////////////
+ // Pipeline Stage 3: Execute
+////////////////////////////////////////////////////////////////////////////////
 
 // The ALU module for addition/subtraction
 alu alu_instance (
-	.src_data_1 (src_data_1),           // The register value from src_reg_1
-	.src_data_2 (src_data_2),           // The register value from src_reg_2
-	.immediate  (instruction[3:0]),     // The 4-bit immediate value
-	.opcode     (opcode),
-	.alu_result (alu_result),
-	.flags      (flags)
+	.src_data_1 (ex_src_data_1),           // The register value from src_reg_1
+	.src_data_2 (ex_src_data_2),           // The register value from src_reg_2
+	.immediate  (ex_alu_immediate),        // The 4-bit immediate value
+	.opcode     (ex_opcode),
+	.alu_result (ex_alu_result),
+	.flags      (ex_flags)
 );
+
+// The EX/MEM Pipeline Register
+pipeline_register ex_mem_register_instance (
+	.stall      (),
+	.flush      (),
+	.opcode_in  (ex_opcode),
+	.opcode_out (mem_opcode),
+	.inputs     ({ex_pc_plus_two, ex_src_data_2, ex_alu_result, ex_alu_flags, ex_dest_reg}),
+	.outputs    ()
+);
+
+
+  //////////////////////////////////////////////////////////////////////////////
+ // Pipeline Stage 4: Memory
+////////////////////////////////////////////////////////////////////////////////
 
 // The single cycle data memory
 // The memory module was provided to us
 memory1c memory1c_data_instance (
-	.data_out   (data_mem_data_out),
-	.data_in    (src_data_2),           // src_reg_2 is the only thing stored
-	.addr       (alu_result),           // The address always comes from the ALU
-	.enable     (~old_hlt),                 // Always read until hlt is asserted
-	.wr         (data_mem_wr),
+	.data_out   (mem_data_out),
+	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
+	.addr       (mem_addr),             // The address always comes from the ALU
+	.enable     (mem_enable),             // Always read until hlt is asserted
+	.wr         (mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n)
 );
+
+// The MEM/WB Pipeline Register
+pipeline_register mem_wb_register_instance (
+	.stall      (),
+	.flush      (),
+	.opcode_in  (mem_opcode),
+	.opcode_out (wb_opcode),
+	.inputs     ({mem_dest_reg, mem_reg_write_value}),
+	.outputs    ()
+);
+
+
+
+
 
 // A D-Flip-Flop used to control the hlt signal
 dff hlt_instance (
