@@ -16,6 +16,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// NO IMPLICIT DECLARATIONS BECAUSE THOSE ARE HORRIBLE
+`default_nettype none
 
   //////////////////////////////////////////////////////////////////////////////
  // Declaration of the module and internal signals
@@ -47,44 +49,9 @@ localparam OPCODE_BR     = 4'hD;
 localparam OPCODE_PCS    = 4'hE;
 localparam OPCODE_HLT    = 4'hF;
 
-// This is just the opcode of the current instruction (for ease of use)
-wire    [3:0]   opcode;
-
-
-// This is output by the PC register just for the PCS instruction
-wire    [15:0]  pc_plus_two;
-
-
-// This is the only thing not directly mapped in the instruction memory. It's
-// just the current instruction
-wire    [15:0]  instruction;
-
-
-// Lines going in/out of the register file
-wire    [3:0]   src_reg_1;              // The first register to read from
-wire    [3:0]   src_reg_2;              // The second register to read from
-wire    [3:0]   dest_reg;               // The register to write to
-wire            reg_write;              // Reg file write enable
-wire    [15:0]  reg_write_data;         // The value to write to dest_reg
-wire    [15:0]  src_data_1;             // The value read from src_reg_1
-wire    [15:0]  src_data_2;             // The value read from src_reg_2
-
-
-// Lines going in/out of the ALU (some are manually assigned)
-wire    [15:0]  alu_result;
-wire    [2:0]  flags;
-
-
-// Lines going in/out of the data memory
-wire    [15:0]  data_mem_data_out;		// The value read from data memory
-wire            data_mem_wr;            // Enables memory writing. Requires
-                                        //     data_mem_enable to be asserted
-
-
 // Line used to control the hlt DFF
+wire            hlt;
 wire            old_hlt;
-
-
 
 
 wire    [15:0]  if_instruction;
@@ -95,13 +62,16 @@ wire    [31:0]  if_id_register_input;
 wire    [31:0]  if_id_register_output;
 
 wire    [3:0]   id_opcode;
+wire    [15:0]  id_instruction;
+wire    [15:0]  id_pc_plus_two;
 wire    [15:0]  id_src_reg_1;
 wire    [15:0]  id_src_reg_2;
 wire    [15:0]  id_pc_plus_two;
 wire    [15:0]  id_src_data_1;
 wire    [15:0]  id_src_data_2;
-wire    [15:0]  id_alu_immediate;
+wire    [3:0]   id_alu_immediate;
 wire    [3:0]   id_dest_reg;
+wire    [7:0]   id_load_half_byte;
 
 wire    [55:0]  id_ex_register_input;
 wire    [55:0]  id_ex_register_output;
@@ -112,16 +82,20 @@ wire    [15:0]  ex_src_data_1;
 wire    [15:0]  ex_src_data_2;
 wire    [3:0]   ex_alu_immediate;
 wire    [15:0]  ex_alu_result;
-wire    [2:0]   ex_flags;
+wire    [2:0]   ex_alu_flags;
 wire    [3:0]   ex_dest_reg;
+wire    [7:0]   ex_load_half_byte;
 
 wire    [54:0]  ex_mem_register_input;
 wire    [54:0]  ex_mem_register_output;
 
 wire    [3:0]   mem_opcode;
-wire    [15:0]  mem_data_out;
+wire    [15:0]  mem_pc_plus_two;
 wire    [15:0]  mem_data_in;		// Gets ex_src_data_2
 wire    [15:0]  mem_addr;			// Gets ex_alu_result
+wire    [2:0]   mem_alu_flags;
+wire    [7:0]   mem_load_half_byte;
+wire    [15:0]  mem_data_out;
 wire            mem_enable;
 wire            mem_wr;
 wire    [3:0]   mem_dest_reg;
@@ -145,12 +119,14 @@ wire    [15:0]  wb_reg_write_value;
 pc_register pc_register_instance (
 	.clk            (clk),
 	.rst_n          (rst_n),
-	.instruction    (instruction),
+	.instruction    (if_instruction),
 	.branch_reg_val (src_data_1),
 	.flags          (flags),
 	.pc             (pc),
 	.pc_plus_two    (pc_plus_two)
 );
+
+
 
 // The single cycle instruction memory
 // The memory module was provided to us
@@ -164,20 +140,65 @@ memory1c memory1c_instruction_instance (
 	.rst        (~rst_n)
 );
 
+assign if_id_register_input[15:0]  = if_pc_plus_two;
+assign if_id_register_input[31:16] = if_instruction;
+
 // The IF/ID Pipeline Register
 pipeline_register if_id_register_instance (
 	.stall      (),
 	.flush      (),
 	.opcode_in  (if_instruction[15:12]),
 	.opcode_out (id_opcode),
-	.inputs     ({if_pc_plus_two, if_instruction}),
+	.inputs     (if_id_register_input),
 	.outputs    (if_id_register_output)
 );
 
 
   //////////////////////////////////////////////////////////////////////////////
- // Pipeline Stage 2: Instrucgtion Decode
+ // Pipeline Stages 2 & 5: Instrucgtion Decode & Write Back
 ////////////////////////////////////////////////////////////////////////////////
+
+// Decompress data from the if_id_register_output
+assign id_pc_plus_two = if_id_register_output[15:0];
+assign id_instruction = if_id_register_output[31:16];
+
+
+// All instructions use instruction[7:4] as src_reg_1 (if they use it at all).
+// If it's not needed, then it doesn't matter what's being read
+assign id_src_reg_1 = id_instruction[7:4];
+
+// Compute instructions use instruction[3:0]. SW uses instruction[11:8].
+// No other instruction uses src_reg_2, so it can just be whatever.
+// If opcode[3] == 1'b0, then it's a compute instruction.
+assign id_src_reg_2 = (id_opcode[3] == 1'b0) ?id_instruction[3:0] : id_instruction[11:8]
+
+// There are no instructions where dest_reg is not instruction[11:8]. Thus,
+// it'll just be up to the reg_write signal to make sure writes don't screw
+// things up
+assign id_dest_reg = id_instruction[11:8];
+
+// The LHB and LLB instructions need this
+assign id_load_half_byte = id_instruction[7:0];
+
+
+
+
+// Decompress data from the mem_wb_register_output
+assign mem_reg_write_value = mem_wb_register_output[15:0];
+assign mem_dest_reg = mem_wb_register_output[19:16];
+
+
+// Only write to registers for certain instructions. These instructions are
+// LW, LHB, LLB, PCS, and all compute instructions (opcode[3] == 1'b0).
+// In order to simplify the logic, I used a Karnaugh map to determine a Product
+// of Sums solution to this logic
+assign wb_reg_write =
+	(~wb_opcode[3] |  wb_opcode[1] | ~wb_opcode[0]) &
+	(~wb_opcode[3] | ~wb_opcode[2] |  wb_opcode[1]) &
+	(~wb_opcode[3] | ~wb_opcode[2] | ~wb_opcode[0]);
+
+
+
 
 // The register file we made
 register_file register_file_instance (
@@ -192,13 +213,22 @@ register_file register_file_instance (
 	.SrcData2   (id_src_data_2)
 );
 
+
+// Compress data for the id_ex_register_input
+assign id_ex_register_input[15:0]  = id_pc_plus_two;
+assign id_ex_register_input[31:16] = id_src_data_1;
+assign id_ex_register_input[47:32] = id_src_data_2;
+assign id_ex_register_input[51:48] = id_alu_immediate;
+assign id_ex_register_input[55:52] = id_dest_reg;
+assign id_ex_register_input[63:56] = id_load_half_byte;
+
 // The ID/EX Pipeline Register
 pipeline_register id_ex_register_instance (
 	.stall      (),
 	.flush      (),
 	.opcode_in  (id_opcode),
 	.opcode_out (ex_opcode),
-	.inputs     ({id_pc_plus_two, id_src_data_1, id_src_data_2, id_alu_immediate, id_dest_reg}),
+	.inputs     (id_ex_register_input),
 	.outputs    (id_ex_register_output)
 );
 
@@ -207,6 +237,15 @@ pipeline_register id_ex_register_instance (
  // Pipeline Stage 3: Execute
 ////////////////////////////////////////////////////////////////////////////////
 
+// Decompress data from the id_ex_register_output
+assign ex_pc_plus_two    = id_ex_register_output[15:0];
+assign ex_src_data_1     = id_ex_register_output[31:16];
+assign ex_src_data_2     = id_ex_register_output[47:32];
+assign ex_alu_immediate  = id_ex_register_output[51:48];
+assign ex_dest_reg       = id_ex_register_output[55:52];
+assign ex_load_half_byte = id_ex_register_output[63:56];
+
+
 // The ALU module for addition/subtraction
 alu alu_instance (
 	.src_data_1 (ex_src_data_1),           // The register value from src_reg_1
@@ -214,8 +253,17 @@ alu alu_instance (
 	.immediate  (ex_alu_immediate),        // The 4-bit immediate value
 	.opcode     (ex_opcode),
 	.alu_result (ex_alu_result),
-	.flags      (ex_flags)
+	.flags      (ex_alu_flags)
 );
+
+
+// Compress data for the ex_mem_register_input
+assign ex_mem_register_input[15:0]  = ex_pc_plus_two;
+assign ex_mem_register_input[31:16] = ex_src_data_2;
+assign ex_mem_register_input[47:32] = ex_alu_result;
+assign ex_mem_register_input[50:48] = ex_alu_flags;
+assign ex_mem_register_input[54:51] = ex_dest_reg;
+assign ex_mem_register_input[62:55] = ex_load_half_byte;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
@@ -223,8 +271,8 @@ pipeline_register ex_mem_register_instance (
 	.flush      (),
 	.opcode_in  (ex_opcode),
 	.opcode_out (mem_opcode),
-	.inputs     ({ex_pc_plus_two, ex_src_data_2, ex_alu_result, ex_alu_flags, ex_dest_reg}),
-	.outputs    ()
+	.inputs     (ex_mem_register_input),
+	.outputs    (ex_mem_register_output)
 );
 
 
@@ -232,17 +280,44 @@ pipeline_register ex_mem_register_instance (
  // Pipeline Stage 4: Memory
 ////////////////////////////////////////////////////////////////////////////////
 
+// Decompress data from the ex_mem_register_output
+assign mem_pc_plus_two    = ex_mem_register_output[15:0];
+assign mem_data_in        = ex_mem_register_output[31:16];     // Gets ex_src_data_2
+assign mem_alu_result     = ex_mem_register_output[47:32];
+assign mem_alu_flags      = ex_mem_register_output[50:48];
+assign mem_dest_reg       = ex_mem_register_output[54:51];
+assign mem_load_half_byte = ex_mem_register_output[62:55];
+
+
+// Only write to memory for SW instructions
+assign mem_wr = (mem_opcode == OPCODE_SW) ? 1'b1 : 1'b0;
+
+// The data to write to the register. It's usually the output of the ALU, so
+// that's why it's the default case
+assign mem_reg_write_value =
+	(mem_opcode == OPCODE_LW)  ? mem_data_out :
+	(mem_opcode == OPCODE_LHB) ? {mem_load_half_byte, mem_data_in[7:0]} :
+	(mem_opcode == OPCODE_LLB) ? {mem_data_in[15:8], mem_load_half_byte} :
+	(mem_opcode == OPCODE_PCS) ? mem_pc_plus_two :
+	                             mem_alu_result;
+
+
 // The single cycle data memory
 // The memory module was provided to us
 memory1c memory1c_data_instance (
 	.data_out   (mem_data_out),
 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
-	.addr       (mem_addr),             // The address always comes from the ALU
-	.enable     (mem_enable),             // Always read until hlt is asserted
+	.addr       (mem_alu_result),       // The address always comes from the ALU
+	.enable     (mem_enable),           // Always read until hlt is asserted
 	.wr         (mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n)
 );
+
+
+// Compress data for the mem_wb_register_input
+assign mem_wb_register_input[15:0]  = mem_reg_write_value;
+assign mem_wb_register_input[19:16] = mem_dest_reg;
 
 // The MEM/WB Pipeline Register
 pipeline_register mem_wb_register_instance (
@@ -250,8 +325,8 @@ pipeline_register mem_wb_register_instance (
 	.flush      (),
 	.opcode_in  (mem_opcode),
 	.opcode_out (wb_opcode),
-	.inputs     ({mem_dest_reg, mem_reg_write_value}),
-	.outputs    ()
+	.inputs     (mem_wb_register_input),
+	.outputs    (mem_wb_register_output)
 );
 
 
@@ -272,57 +347,12 @@ dff hlt_instance (
  // Not Register File Control Stuff
 ////////////////////////////////////////////////////////////////////////////////
 
-// This just makes it easier to write stuff
-assign opcode = instruction[15:12];
-
 // If the current instruction is HLT, then assert hlt. Since the opcode for
 // HLT is 4'hF, I can just use an AND reduction on the opcode
 assign hlt =
 	~rst_n  ? 1'b0 :
 	&opcode ? 1'b1 :
 	        old_hlt;
-
-// Only write to memory for SW instructions
-assign data_mem_wr = (opcode == OPCODE_SW) ? 1'b1 : 1'b0;
-
-
-  //////////////////////////////////////////////////////////////////////////////
- // Register File Control Stuff
-////////////////////////////////////////////////////////////////////////////////
-
-// To learn more about the register assignments, see "instruction_encoding.txt"
-
-// All instructions use instruction[7:4] as src_reg_1 (if they use it at all).
-// If it's not needed, then it doesn't matter what's being read
-assign src_reg_1 = instruction[7:4];
-
-// Compute instructions use instruction[3:0]. SW uses instruction[11:8].
-// No other instruction uses src_reg_2, so it can just be whatever.
-// If opcode[3] == 1'b0, then it's a compute instruction.
-assign src_reg_2 = (opcode[3] == 1'b0) ? instruction[3:0] : instruction[11:8];
-
-// There are no instructions where dest_reg is not instruction[11:8]. Thus,
-// it'll just be up to the reg_write signal to make sure writes don't screw
-// things up
-assign dest_reg = instruction[11:8];
-
-// Only write to registers for certain instructions. These instructions are
-// LW, LHB, LLB, PCS, and all compute instructions (opcode[3] == 1'b0).
-// In order to simplify the logic, I used a Karnaugh map to determine a Product
-// of Sums solution to this logic
-assign reg_write =
-	(~opcode[3] |  opcode[1] | ~opcode[0]) &
-	(~opcode[3] | ~opcode[2] |  opcode[1]) &
-	(~opcode[3] | ~opcode[2] | ~opcode[0]);
-
-// The data to write to the register. It's usually the output of the ALU, so
-// that's why it's the default case
-assign reg_write_data =
-	(opcode == OPCODE_LW)  ? data_mem_data_out :
-	(opcode == OPCODE_LHB) ? {instruction[7:0], src_data_2[7:0]} :
-	(opcode == OPCODE_LLB) ? {src_data_2[15:8], instruction[7:0]} :
-	(opcode == OPCODE_PCS) ? pc_plus_two :
-	                         alu_result;
 
 
 endmodule
