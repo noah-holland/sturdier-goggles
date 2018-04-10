@@ -17,6 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // NO IMPLICIT DECLARATIONS BECAUSE THOSE ARE HORRIBLE
+// ^bump
 `default_nettype none
 
   //////////////////////////////////////////////////////////////////////////////
@@ -50,7 +51,6 @@ localparam OPCODE_PCS    = 4'hE;
 localparam OPCODE_HLT    = 4'hF;
 
 // Line used to control the hlt DFF
-wire            hlt;
 wire            old_hlt;
 
 
@@ -58,23 +58,22 @@ wire    [15:0]  if_instruction;
 wire    [15:0]  if_pc;
 wire    [15:0]  if_pc_plus_two;
 
-wire    [31:0]  if_id_register_input;
-wire    [31:0]  if_id_register_output;
+wire    [63:0]  if_id_register_input;
+wire    [63:0]  if_id_register_output;
 
 wire    [3:0]   id_opcode;
 wire    [15:0]  id_instruction;
 wire    [15:0]  id_pc_plus_two;
 wire    [15:0]  id_src_reg_1;
 wire    [15:0]  id_src_reg_2;
-wire    [15:0]  id_pc_plus_two;
 wire    [15:0]  id_src_data_1;
 wire    [15:0]  id_src_data_2;
 wire    [3:0]   id_alu_immediate;
 wire    [3:0]   id_dest_reg;
 wire    [7:0]   id_load_half_byte;
 
-wire    [55:0]  id_ex_register_input;
-wire    [55:0]  id_ex_register_output;
+wire    [63:0]  id_ex_register_input;
+wire    [63:0]  id_ex_register_output;
 
 wire    [3:0]   ex_opcode;
 wire    [15:0]  ex_pc_plus_two;
@@ -86,12 +85,13 @@ wire    [2:0]   ex_alu_flags;
 wire    [3:0]   ex_dest_reg;
 wire    [7:0]   ex_load_half_byte;
 
-wire    [54:0]  ex_mem_register_input;
-wire    [54:0]  ex_mem_register_output;
+wire    [63:0]  ex_mem_register_input;
+wire    [63:0]  ex_mem_register_output;
 
 wire    [3:0]   mem_opcode;
 wire    [15:0]  mem_pc_plus_two;
 wire    [15:0]  mem_data_in;		// Gets ex_src_data_2
+wire    [15:0]  mem_alu_result;
 wire    [15:0]  mem_addr;			// Gets ex_alu_result
 wire    [2:0]   mem_alu_flags;
 wire    [7:0]   mem_load_half_byte;
@@ -101,9 +101,10 @@ wire            mem_wr;
 wire    [3:0]   mem_dest_reg;
 wire    [15:0]  mem_reg_write_value;
 
-wire    [19:0]  mem_wb_register_input;
-wire    [19:0]  mem_wb_register_output;
+wire    [63:0]  mem_wb_register_input;
+wire    [63:0]  mem_wb_register_output;
 
+wire            wb_reg_write;
 wire    [3:0]   wb_opcode;
 wire    [3:0]   wb_dest_reg;
 wire    [15:0]  wb_reg_write_value;
@@ -170,7 +171,7 @@ assign id_src_reg_1 = id_instruction[7:4];
 // Compute instructions use instruction[3:0]. SW uses instruction[11:8].
 // No other instruction uses src_reg_2, so it can just be whatever.
 // If opcode[3] == 1'b0, then it's a compute instruction.
-assign id_src_reg_2 = (id_opcode[3] == 1'b0) ?id_instruction[3:0] : id_instruction[11:8]
+assign id_src_reg_2 = (id_opcode[3] == 1'b0) ?id_instruction[3:0] : id_instruction[11:8];
 
 // There are no instructions where dest_reg is not instruction[11:8]. Thus,
 // it'll just be up to the reg_write signal to make sure writes don't screw
@@ -351,7 +352,7 @@ dff hlt_instance (
 // HLT is 4'hF, I can just use an AND reduction on the opcode
 assign hlt =
 	~rst_n  ? 1'b0 :
-	&opcode ? 1'b1 :
+	&wb_opcode ? 1'b1 :
 	        old_hlt;
 
 
