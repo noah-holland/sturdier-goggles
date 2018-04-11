@@ -211,9 +211,29 @@ register_file register_file_instance (
 	.DstReg     (wb_dest_reg),
 	.WriteReg   (wb_reg_write),
 	.DstData    (wb_reg_write_value),
-	.SrcData1   (id_src_data_1),
-	.SrcData2   (id_src_data_2)
+	.SrcData1   (id_src_data_1_internal),
+	.SrcData2   (id_src_data_2_internal)
 );
+
+// Only forward data from the alu if we are doing an arithmetic operation
+assign forward_alu_data = ~ex_opcode[3];
+
+// Only forward data from the mem if we are doing a load
+assign forward_mem_data = (mem_opcode == OPCODE_LW)  |
+                          (mem_opcode == OPCODE_LHB) |
+                          (mem_opcode == OPCODE_LLB);
+
+
+// Data forward to id_src_reg_1
+assign id_src_data_1 = (id_src_reg_1 == ex_dest_reg)  & forward_alu_data ? ex_alu_result :
+ 											 (id_src_reg_1 == mem_dest_reg) & forward_mem_data ? mem_data_out  :
+											 id_src_data_1_internal;
+
+// Data forward to id_src_reg_2
+assign id_src_data_2 = (id_src_reg_2 == ex_dest_reg)  & forward_alu_data ? ex_alu_result :
+ 											 (id_src_reg_2 == mem_dest_reg) & forward_mem_data ? mem_data_out  :
+											 id_src_data_2_internal;
+
 
 
 // Compress data for the id_ex_register_input
