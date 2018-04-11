@@ -131,12 +131,17 @@ pc_register pc_register_instance (
 
 assign pc = if_pc;
 
-assign if_stall = (ex_opcode == OPCODE_B)   ? 1'b1 :
-                  (ex_opcode == OPCODE_BR)  ? 1'b1 :
-                  (ex_opcode == OPCODE_LW)  ? 1'b1 :
-                  (ex_opcode == OPCODE_LLB) ? 1'b1 :
-                  (ex_opcode == OPCODE_LHB) ? 1'b1 :
-									1'b0;
+assign if_stall = (ex_opcode == OPCODE_B)    ? 1'b1 :
+                  (ex_opcode == OPCODE_BR)   ? 1'b1 :
+                  (ex_opcode == OPCODE_LW)   ? 1'b1 :
+                  (ex_opcode == OPCODE_LLB)  ? 1'b1 :
+                  (ex_opcode == OPCODE_LHB)  ? 1'b1 :
+                  (mem_opcode == OPCODE_B)   ? 1'b1 :
+                  (mem_opcode == OPCODE_BR)  ? 1'b1 :
+                  (mem_opcode == OPCODE_LW)  ? 1'b1 :
+                  (mem_opcode == OPCODE_LLB) ? 1'b1 :
+                  (mem_opcode == OPCODE_LHB) ? 1'b1 :
+                                               1'b0;
 
 // The single cycle instruction memory
 // The memory module was provided to us
