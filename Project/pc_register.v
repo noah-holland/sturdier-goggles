@@ -29,6 +29,7 @@ module pc_register (
 	input   wire    [15:0]  instruction,
 	input   wire    [15:0]  branch_reg_val,
 	input   wire    [2:0]   flags,
+	input   wire            stall,
 	output	wire    [15:0]  pc,
 	output  wire    [15:0]  pc_plus_two
 );
@@ -179,7 +180,8 @@ assign condition_met =
 	(~condition[1] & ~condition[0] & ~n_flag & ~z_flag);
 
 // Assign the value of next_pc to be one of these things
-assign next_pc = (opcode == OPCODE_HLT)     ? pc :
+assign next_pc = stall ? pc :
+  (opcode == OPCODE_HLT)     ? pc :
 	((opcode == OPCODE_B)  & condition_met) ? pc_plus_offset :
 	((opcode == OPCODE_BR) & condition_met) ? branch_reg_val :
 	                                          pc_plus_two;

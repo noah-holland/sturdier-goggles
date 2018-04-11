@@ -57,6 +57,7 @@ wire            old_hlt;
 wire    [15:0]  if_instruction;
 wire    [15:0]  if_pc;
 wire    [15:0]  if_pc_plus_two;
+wire            if_stall;
 
 wire    [63:0]  if_id_register_input;
 wire    [63:0]  if_id_register_output;
@@ -68,6 +69,8 @@ wire    [3:0]   id_src_reg_1;
 wire    [3:0]   id_src_reg_2;
 wire    [15:0]  id_src_data_1;
 wire    [15:0]  id_src_data_2;
+wire    [15:0]  id_src_data_1_internal;
+wire    [15:0]  id_src_data_2_internal;
 wire    [3:0]   id_alu_immediate;
 wire    [3:0]   id_dest_reg;
 wire    [7:0]   id_load_half_byte;
@@ -92,11 +95,9 @@ wire    [3:0]   mem_opcode;
 wire    [15:0]  mem_pc_plus_two;
 wire    [15:0]  mem_data_in;		// Gets ex_src_data_2
 wire    [15:0]  mem_alu_result;
-wire    [15:0]  mem_addr;			// Gets ex_alu_result
 wire    [2:0]   mem_alu_flags;
 wire    [7:0]   mem_load_half_byte;
 wire    [15:0]  mem_data_out;
-wire            mem_enable;
 wire            mem_wr;
 wire    [3:0]   mem_dest_reg;
 wire    [15:0]  mem_reg_write_value;
@@ -123,11 +124,19 @@ pc_register pc_register_instance (
 	.instruction    (if_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
+	.stall          (if_stall),
 	.pc             (if_pc),
 	.pc_plus_two    (if_pc_plus_two)
 );
 
 assign pc = if_pc;
+
+assign if_stall = (ex_opcode == OPCODE_B)   ? 1'b1 :
+                  (ex_opcode == OPCODE_BR)  ? 1'b1 :
+                  (ex_opcode == OPCODE_LW)  ? 1'b1 :
+                  (ex_opcode == OPCODE_LLB) ? 1'b1 :
+                  (ex_opcode == OPCODE_LHB) ? 1'b1 :
+									1'b0;
 
 // The single cycle instruction memory
 // The memory module was provided to us
@@ -143,10 +152,11 @@ memory1c memory1c_instruction_instance (
 
 assign if_id_register_input[15:0]  = if_pc_plus_two;
 assign if_id_register_input[31:16] = if_instruction;
+assign if_id_register_input[63:32] = 32'b0;
 
 // The IF/ID Pipeline Register
 pipeline_register if_id_register_instance (
-	.stall      (0),
+	.stall      (if_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (if_instruction[15:12]),
@@ -163,6 +173,9 @@ pipeline_register if_id_register_instance (
 // Decompress data from the if_id_register_output
 assign id_pc_plus_two = if_id_register_output[15:0];
 assign id_instruction = if_id_register_output[31:16];
+
+// Set alu immediate to 3 LSB of the instruction
+assign id_alu_immediate = id_instruction[3:0];
 
 
 // All instructions use instruction[7:4] as src_reg_1 (if they use it at all).
@@ -246,7 +259,7 @@ assign id_ex_register_input[63:56] = id_load_half_byte;
 
 // The ID/EX Pipeline Register
 pipeline_register id_ex_register_instance (
-	.stall      (0),
+	.stall      (1'b0),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (id_opcode),
@@ -287,10 +300,11 @@ assign ex_mem_register_input[47:32] = ex_alu_result;
 assign ex_mem_register_input[50:48] = ex_alu_flags;
 assign ex_mem_register_input[54:51] = ex_dest_reg;
 assign ex_mem_register_input[62:55] = ex_load_half_byte;
+assign ex_mem_register_input[63] = 1'b0;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
-	.stall      (0),
+	.stall      (1'b0),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (ex_opcode),
@@ -332,7 +346,7 @@ memory1c memory1c_data_instance (
 	.data_out   (mem_data_out),
 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
 	.addr       (mem_alu_result),       // The address always comes from the ALU
-	.enable     (~old_hlt),           // Always read until hlt is asserted
+	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
 	.wr         (mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n)
@@ -342,10 +356,11 @@ memory1c memory1c_data_instance (
 // Compress data for the mem_wb_register_input
 assign mem_wb_register_input[15:0]  = mem_reg_write_value;
 assign mem_wb_register_input[19:16] = mem_dest_reg;
+assign mem_wb_register_input[63:20] = 44'b0;
 
 // The MEM/WB Pipeline Register
 pipeline_register mem_wb_register_instance (
-	.stall      (0),
+	.stall      (1'b0),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (mem_opcode),
