@@ -123,11 +123,11 @@ pc_register pc_register_instance (
 	.instruction    (if_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
-	.pc             (pc),
+	.pc             (if_pc),
 	.pc_plus_two    (if_pc_plus_two)
 );
 
-
+assign pc = if_pc;
 
 // The single cycle instruction memory
 // The memory module was provided to us
@@ -146,8 +146,8 @@ assign if_id_register_input[31:16] = if_instruction;
 
 // The IF/ID Pipeline Register
 pipeline_register if_id_register_instance (
-	.stall      (),
-	.flush      (),
+	.stall      (0),
+	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (if_instruction[15:12]),
 	.opcode_out (id_opcode),
@@ -186,8 +186,8 @@ assign id_load_half_byte = id_instruction[7:0];
 
 
 // Decompress data from the mem_wb_register_output
-assign mem_reg_write_value = mem_wb_register_output[15:0];
-assign mem_dest_reg = mem_wb_register_output[19:16];
+assign wb_reg_write_value = mem_wb_register_output[15:0];
+assign wb_dest_reg = mem_wb_register_output[19:16];
 
 
 // Only write to registers for certain instructions. These instructions are
@@ -226,8 +226,8 @@ assign id_ex_register_input[63:56] = id_load_half_byte;
 
 // The ID/EX Pipeline Register
 pipeline_register id_ex_register_instance (
-	.stall      (),
-	.flush      (),
+	.stall      (0),
+	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (id_opcode),
 	.opcode_out (ex_opcode),
@@ -270,8 +270,8 @@ assign ex_mem_register_input[62:55] = ex_load_half_byte;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
-	.stall      (),
-	.flush      (),
+	.stall      (0),
+	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (ex_opcode),
 	.opcode_out (mem_opcode),
@@ -312,7 +312,7 @@ memory1c memory1c_data_instance (
 	.data_out   (mem_data_out),
 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
 	.addr       (mem_alu_result),       // The address always comes from the ALU
-	.enable     (mem_enable),           // Always read until hlt is asserted
+	.enable     (~old_hlt),           // Always read until hlt is asserted
 	.wr         (mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n)
@@ -325,8 +325,8 @@ assign mem_wb_register_input[19:16] = mem_dest_reg;
 
 // The MEM/WB Pipeline Register
 pipeline_register mem_wb_register_instance (
-	.stall      (),
-	.flush      (),
+	.stall      (0),
+	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (mem_opcode),
 	.opcode_out (wb_opcode),
