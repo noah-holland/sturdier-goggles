@@ -133,7 +133,7 @@ pc_register pc_register_instance (
 assign pc = if_pc;
 
 // We will want to stop the pc from incrementing if there is a halt
-assign if_hlt = &if_instruction[15:12]
+assign if_hlt = &if_instruction[15:12];
 
 // We want to stall if any of these opcodes are found
 // in either the ex pipeline or mem pipeline
