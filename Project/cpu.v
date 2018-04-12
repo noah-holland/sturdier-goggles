@@ -237,19 +237,20 @@ register_file register_file_instance (
 assign forward_alu_data = ~ex_opcode[3];
 
 // Only forward data from the mem if we are doing a load
-assign forward_mem_data = (mem_opcode == OPCODE_LW)  |
+assign forward_mem_data = (~mem_opcode[3])           |
+                          (mem_opcode == OPCODE_LW)  |
                           (mem_opcode == OPCODE_LHB) |
                           (mem_opcode == OPCODE_LLB);
 
 
 // Data forward to id_src_reg_1
 assign id_src_data_1 = (id_src_reg_1 == ex_dest_reg)  & forward_alu_data ? ex_alu_result :
- 											 (id_src_reg_1 == mem_dest_reg) & forward_mem_data ? mem_data_out  :
+ 											 (id_src_reg_1 == mem_dest_reg) & forward_mem_data ? mem_reg_write_value  :
 											 id_src_data_1_internal;
 
 // Data forward to id_src_reg_2
 assign id_src_data_2 = (id_src_reg_2 == ex_dest_reg)  & forward_alu_data ? ex_alu_result :
- 											 (id_src_reg_2 == mem_dest_reg) & forward_mem_data ? mem_data_out  :
+ 											 (id_src_reg_2 == mem_dest_reg) & forward_mem_data ? mem_reg_write_value  :
 											 id_src_data_2_internal;
 
 
