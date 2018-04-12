@@ -64,16 +64,12 @@ wire    [63:0]  if_id_register_output;
 
 wire    [3:0]   id_opcode;
 wire    [15:0]  id_instruction;
-wire    [15:0]  id_pc_plus_two;
 wire    [3:0]   id_src_reg_1;
 wire    [3:0]   id_src_reg_2;
 wire    [15:0]  id_src_data_1;
 wire    [15:0]  id_src_data_2;
 wire    [15:0]  id_src_data_1_internal;
 wire    [15:0]  id_src_data_2_internal;
-wire    [3:0]   id_alu_immediate;
-wire    [3:0]   id_dest_reg;
-wire    [7:0]   id_load_half_byte;
 
 wire    [63:0]  id_ex_register_input;
 wire    [63:0]  id_ex_register_output;
@@ -84,6 +80,7 @@ wire    [15:0]  ex_src_data_1;
 wire    [15:0]  ex_src_data_2;
 wire    [3:0]   ex_alu_immediate;
 wire    [15:0]  ex_alu_result;
+wire    [15:0]  ex_instruction;
 wire    [2:0]   ex_alu_flags;
 wire    [3:0]   ex_dest_reg;
 wire    [7:0]   ex_load_half_byte;
@@ -121,7 +118,7 @@ wire    [15:0]  wb_reg_write_value;
 pc_register pc_register_instance (
 	.clk            (clk),
 	.rst_n          (rst_n),
-	.instruction    (if_instruction),
+	.instruction    (ex_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
 	.stall          (if_stall),
@@ -179,10 +176,6 @@ pipeline_register if_id_register_instance (
 assign id_pc_plus_two = if_id_register_output[15:0];
 assign id_instruction = if_id_register_output[31:16];
 
-// Set alu immediate to 3 LSB of the instruction
-assign id_alu_immediate = id_instruction[3:0];
-
-
 // All instructions use instruction[7:4] as src_reg_1 (if they use it at all).
 // If it's not needed, then it doesn't matter what's being read
 assign id_src_reg_1 = id_instruction[7:4];
@@ -191,16 +184,6 @@ assign id_src_reg_1 = id_instruction[7:4];
 // No other instruction uses src_reg_2, so it can just be whatever.
 // If opcode[3] == 1'b0, then it's a compute instruction.
 assign id_src_reg_2 = (id_opcode[3] == 1'b0) ?id_instruction[3:0] : id_instruction[11:8];
-
-// There are no instructions where dest_reg is not instruction[11:8]. Thus,
-// it'll just be up to the reg_write signal to make sure writes don't screw
-// things up
-assign id_dest_reg = id_instruction[11:8];
-
-// The LHB and LLB instructions need this
-assign id_load_half_byte = id_instruction[7:0];
-
-
 
 
 // Decompress data from the mem_wb_register_output
@@ -259,9 +242,7 @@ assign id_src_data_2 = (id_src_reg_2 == ex_dest_reg)  & forward_alu_data ? ex_al
 assign id_ex_register_input[15:0]  = id_pc_plus_two;
 assign id_ex_register_input[31:16] = id_src_data_1;
 assign id_ex_register_input[47:32] = id_src_data_2;
-assign id_ex_register_input[51:48] = id_alu_immediate;
-assign id_ex_register_input[55:52] = id_dest_reg;
-assign id_ex_register_input[63:56] = id_load_half_byte;
+assign id_ex_register_input[63:48] = id_instruction;
 
 // The ID/EX Pipeline Register
 pipeline_register id_ex_register_instance (
@@ -283,9 +264,18 @@ pipeline_register id_ex_register_instance (
 assign ex_pc_plus_two    = id_ex_register_output[15:0];
 assign ex_src_data_1     = id_ex_register_output[31:16];
 assign ex_src_data_2     = id_ex_register_output[47:32];
-assign ex_alu_immediate  = id_ex_register_output[51:48];
-assign ex_dest_reg       = id_ex_register_output[55:52];
-assign ex_load_half_byte = id_ex_register_output[63:56];
+assign ex_instruction    = id_ex_register_output[63:48];
+
+// Set alu immediate to 3 LSB of the instruction
+assign ex_alu_immediate = ex_instruction[3:0];
+
+// There are no instructions where dest_reg is not instruction[11:8]. Thus,
+// it'll just be up to the reg_write signal to make sure writes don't screw
+// things up
+assign ex_dest_reg = ex_instruction[11:8];
+
+// The LHB and LLB instructions need this
+assign ex_load_half_byte = ex_instruction[7:0];
 
 
 // The ALU module for addition/subtraction
