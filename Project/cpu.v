@@ -67,6 +67,7 @@ wire    [63:0]  if_id_register_output;
 
 wire    [3:0]   id_opcode;
 wire    [15:0]  id_instruction;
+wire    [15:0]  id_pc_plus_two;
 wire    [3:0]   id_src_reg_1;
 wire    [3:0]   id_src_reg_2;
 wire    [15:0]  id_src_data_1;
