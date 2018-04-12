@@ -57,6 +57,7 @@ wire            old_hlt;
 wire    [15:0]  if_instruction;
 wire    [15:0]  if_pc;
 wire    [15:0]  if_pc_plus_two;
+wire            if_hlt;
 wire            if_stall;
 wire            do_if_flush;
 wire            if_flush;
@@ -123,7 +124,7 @@ pc_register pc_register_instance (
 	.instruction    (ex_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
-	.stall          (if_stall),
+	.stall          (if_stall | if_hlt),
 	.pc             (if_pc),
 	.pc_plus_two    (if_pc_plus_two),
 	.do_if_flush    (do_if_flush)
@@ -131,6 +132,13 @@ pc_register pc_register_instance (
 
 assign pc = if_pc;
 
+// We will want to stop the pc from incrementing if there is a halt
+assign if_hlt = &if_instruction[15:12]
+
+// We want to stall if any of these opcodes are found
+// in either the ex pipeline or mem pipeline
+// This lets us insert two stalls for each instruction
+// that passes through
 assign if_stall = (ex_opcode == OPCODE_B)    ? 1'b1 :
                   (ex_opcode == OPCODE_BR)   ? 1'b1 :
                   (ex_opcode == OPCODE_LW)   ? 1'b1 :
@@ -155,8 +163,9 @@ memory1c memory1c_instruction_instance (
 	.rst        (~rst_n)
 );
 
-
-assign if_flush = (~rst_n) & do_if_flush;
+// We want to flush the if register if theres a global reset, or we're told to
+// by the branching logic
+assign if_flush = (~rst_n) | do_if_flush;
 
 assign if_id_register_input[15:0]  = if_pc_plus_two;
 assign if_id_register_input[31:16] = if_instruction;
@@ -389,7 +398,7 @@ dff hlt_instance (
  // Not Register File Control Stuff
 ////////////////////////////////////////////////////////////////////////////////
 
-// If the current instruction is HLT, then assert hlt. Since the opcode for
+// If the current instruction in wb is HLT, then assert hlt. Since the opcode for
 // HLT is 4'hF, I can just use an AND reduction on the opcode
 assign hlt =
 	~rst_n  ? 1'b0 :
