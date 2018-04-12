@@ -58,6 +58,8 @@ wire    [15:0]  if_instruction;
 wire    [15:0]  if_pc;
 wire    [15:0]  if_pc_plus_two;
 wire            if_stall;
+wire            do_if_flush;
+wire            if_flush;
 
 wire    [63:0]  if_id_register_input;
 wire    [63:0]  if_id_register_output;
@@ -123,7 +125,8 @@ pc_register pc_register_instance (
 	.flags          (ex_alu_flags),
 	.stall          (if_stall),
 	.pc             (if_pc),
-	.pc_plus_two    (if_pc_plus_two)
+	.pc_plus_two    (if_pc_plus_two),
+	.do_if_flush    (do_if_flush)
 );
 
 assign pc = if_pc;
@@ -152,6 +155,9 @@ memory1c memory1c_instruction_instance (
 	.rst        (~rst_n)
 );
 
+
+assign if_flush = (~rst_n) & do_if_flush;
+
 assign if_id_register_input[15:0]  = if_pc_plus_two;
 assign if_id_register_input[31:16] = if_instruction;
 assign if_id_register_input[63:32] = 32'b0;
@@ -159,7 +165,7 @@ assign if_id_register_input[63:32] = 32'b0;
 // The IF/ID Pipeline Register
 pipeline_register if_id_register_instance (
 	.stall      (if_stall),
-	.flush      (~rst_n),
+	.flush      (if_flush),
 	.clk        (clk),
 	.opcode_in  (if_instruction[15:12]),
 	.opcode_out (id_opcode),
