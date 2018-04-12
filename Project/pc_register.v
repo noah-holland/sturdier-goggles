@@ -180,10 +180,10 @@ assign condition_met =
 	(~condition[1] & ~condition[0] & ~n_flag & ~z_flag);
 
 // Assign the value of next_pc to be one of these things
-assign next_pc = stall ? pc :
-  (opcode == OPCODE_HLT)     ? pc :
-	((opcode == OPCODE_B)  & condition_met) ? pc_plus_offset :
-	((opcode == OPCODE_BR) & condition_met) ? branch_reg_val :
-	                                          pc_plus_two;
+assign next_pc = ((opcode == OPCODE_B)  & condition_met) ? pc_plus_offset :
+								 ((opcode == OPCODE_BR) & condition_met) ? branch_reg_val :
+								 stall ? pc :
+                 (opcode == OPCODE_HLT)     ? pc :
+	               pc_plus_two;
 
 endmodule
