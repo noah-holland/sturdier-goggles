@@ -1,5 +1,6 @@
 # Disable any work directory
 work/
+
 # Ignore any modelsim project files
 *.mpf
 *.mti
@@ -8,3 +9,7 @@ work/
 .nfs*
 transcript
 dump.vcd
+
+# Ignore VIM swap files
+*.swp
+
