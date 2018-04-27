@@ -92,6 +92,7 @@ wire    [7:0]   ex_load_half_byte;
 wire    [63:0]  ex_mem_register_input;
 wire    [63:0]  ex_mem_register_output;
 
+wire            cache_stall;
 wire    [3:0]   mem_opcode;
 wire    [15:0]  mem_pc_plus_two;
 wire    [15:0]  mem_data_in;		// Gets ex_src_data_2
@@ -125,7 +126,7 @@ pc_register pc_register_instance (
 	.instruction    (ex_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
-	.stall          (if_stall | if_hlt),
+	.stall          (if_stall | if_hlt | cache_stall),
 	.pc             (if_pc),
 	.pc_plus_two    (if_pc_plus_two),
 	.do_if_flush    (do_if_flush)
@@ -174,7 +175,7 @@ assign if_id_register_input[63:32] = 32'b0;
 
 // The IF/ID Pipeline Register
 pipeline_register if_id_register_instance (
-	.stall      (if_stall),
+	.stall      (if_stall | cache_stall),
 	.flush      (if_flush),
 	.clk        (clk),
 	.opcode_in  (if_instruction[15:12]),
@@ -262,7 +263,7 @@ assign id_ex_register_input[63:48] = id_instruction;
 
 // The ID/EX Pipeline Register
 pipeline_register id_ex_register_instance (
-	.stall      (1'b0),
+	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (id_opcode),
@@ -316,7 +317,7 @@ assign ex_mem_register_input[63] = 1'b0;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
-	.stall      (1'b0),
+	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (ex_opcode),
@@ -372,7 +373,7 @@ assign mem_wb_register_input[63:20] = 44'b0;
 
 // The MEM/WB Pipeline Register
 pipeline_register mem_wb_register_instance (
-	.stall      (1'b0),
+	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.opcode_in  (mem_opcode),
