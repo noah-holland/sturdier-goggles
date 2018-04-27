@@ -358,7 +358,7 @@ memory1c memory1c_data_instance (
 	.data_out   (mem_data_out),
 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
 	.addr       (mem_alu_result),       // The address always comes from the ALU
-	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
+	.enable     (mem_opcode == OPCODE_LW),           // Always read until hlt is asserted
 	.wr         (mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n)
