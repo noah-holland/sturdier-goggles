@@ -12,7 +12,8 @@ module cache(
 
 	wire [127:0] block_num;		//The block select we are using
 	wire [7:0] word_num,		//The word select we are using
-		   full_tag;		//The tag we are using
+		   full_tag,		//The tag we are using
+		   tag_check;		//The tag in the block
 	wire [15:0] data_out_internal;
 
 	//The data part of the cache

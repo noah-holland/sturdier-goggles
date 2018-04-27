@@ -21,6 +21,7 @@ module cache_controller(
 	wire [15:0] cache_in;		//The input to the cache
 	wire write_data_array;		//Data write from fsm
 	wire write_tag_array;		//Tag write
+	wire [15:0] address;		//The address for the cache
 
 	cache cache(
 		.clk(clk),
@@ -52,6 +53,8 @@ module cache_controller(
 	assign tag_write = write_tag_array;
 
 	assign cache_in = fsm_busy ? memory_data : data_in; 
+
+	assign address = fsm_busy ? memory_address : cache_address;
 
 
 endmodule
