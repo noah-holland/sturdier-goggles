@@ -122,11 +122,13 @@ wire    [15:0]  ram_data_out;
 wire            instr_cache_miss;
 wire            instr_cache_write_tag;
 wire            instr_cache_write_data;
+wire            instr_ram_address;
 
 wire            de_cache_miss;
 wire            de_cache_write_tag;
 wire            de_cache_write_data;
 wire    [15:0]  de_cache_data_in;
+wire            de_ram_address;
 
 wire    [15:0]  alu_result;
 
@@ -148,48 +150,74 @@ memory4c memory4c_instance (
 	.data_valid (ram_data_valid)
 );
 
-cache instr_cache (
-	.clk            (clk),
-	.rst_n          (rst_n),
-	.tag_write      (instr_cache_write_tag),
-	.data_write     (instr_cache_write_data),
-	.cache_enable   (1'b1),
-	.read_address   (if_pc),
-	.write_address  (ram_address),
-	.data_in        (ram_data_out),
-	.data_out       (if_instruction),
-	.cache_miss     (instr_cache_miss)
+cache_controller instr_cache (
+	.clk                (clk),
+	.rst_n              (rst_n),
+	.write              (1'b0),
+	.cache_enable       (1'b1),
+	.cache_address      (if_pc),
+	.data_in            (1'b0),
+	.memory_data_valid  (),
+	.data_out           (if_instruction),
+	.cache_miss         (instr_cache_miss)
+	.memory_address     (instr_ram_address)
 );
 
-cache de_cache (
-	.clk            (clk),
-	.rst_n          (rst_n),
-	.tag_write      (de_cache_write_tag),
-	.data_write     (de_cache_write_data),
-	.cache_enable   (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
-	.read_address   (mem_alu_result),
-	.write_address  (ram_address),
-	.data_in        (de_cache_data_in),
-	.data_out       (mem_data_out),
-	.cache_miss     (de_cache_miss)
+cache_controller de_cache (
+	.clk                (clk),
+	.rst_n              (rst_n),
+	.write              (mem_wr),
+	.cache_enable       (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
+	.cache_address      (mem_alu_result),
+	.data_in            (de_cache_data_in),
+	.memory_data_valid  (),
+	.data_out           (mem_data_out),
+	.cache_miss         (de_cache_miss)
+	.write_address      (de_ram_address),
 );
 
-
-cache_fill_fsm cache_fill_fsm_instance  (
-	.clk                        (clk),
-	.rst_n                      (rst_n),
-	.fsm_busy                   (cache_stall),
-	.i_cache_miss_detected      (instr_cache_miss),
-	.i_cache_miss_address       (if_pc),
-	.write_i_cache_data_array   (instr_cache_write_data),
-	.write_i_cache_tag_array    (instr_cache_write_tag),
-	.d_cache_miss_detected      (de_cache_miss),
-	.d_cache_miss_address       (mem_alu_result),
-	.write_d_cache_data_array   (de_cache_write_data),
-	.write_d_cache_tag_array    (de_cache_write_tag),
-	.memory_address             (fsm_update_address),
-	.memory_data_valid          (ram_data_valid)
-);
+// cache instr_cache (
+// 	.clk            (clk),
+// 	.rst_n          (rst_n),
+// 	.tag_write      (instr_cache_write_tag),
+// 	.data_write     (instr_cache_write_data),
+// 	.cache_enable   (1'b1),
+// 	.read_address   (if_pc),
+// 	.write_address  (ram_address),
+// 	.data_in        (ram_data_out),
+// 	.data_out       (if_instruction),
+// 	.cache_miss     (instr_cache_miss)
+// );
+//
+// cache de_cache (
+// 	.clk            (clk),
+// 	.rst_n          (rst_n),
+// 	.tag_write      (de_cache_write_tag),
+// 	.data_write     (de_cache_write_data),
+// 	.cache_enable   (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
+// 	.read_address   (mem_alu_result),
+// 	.write_address  (ram_address),
+// 	.data_in        (de_cache_data_in),
+// 	.data_out       (mem_data_out),
+// 	.cache_miss     (de_cache_miss)
+// );
+//
+//
+// cache_fill_fsm cache_fill_fsm_instance  (
+// 	.clk                        (clk),
+// 	.rst_n                      (rst_n),
+// 	.fsm_busy                   (cache_stall),
+// 	.i_cache_miss_detected      (instr_cache_miss),
+// 	.i_cache_miss_address       (if_pc),
+// 	.write_i_cache_data_array   (instr_cache_write_data),
+// 	.write_i_cache_tag_array    (instr_cache_write_tag),
+// 	.d_cache_miss_detected      (de_cache_miss),
+// 	.d_cache_miss_address       (mem_alu_result),
+// 	.write_d_cache_data_array   (de_cache_write_data),
+// 	.write_d_cache_tag_array    (de_cache_write_tag),
+// 	.memory_address             (fsm_update_address),
+// 	.memory_data_valid          (ram_data_valid)
+// );
 
 assign de_cache_data_in = mem_wr == 1'b1 ? mem_data_in : ram_data_out;
 
