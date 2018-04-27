@@ -112,6 +112,7 @@ wire    [3:0]   wb_dest_reg;
 wire    [15:0]  wb_reg_write_value;
 
 
+wire    [15:0]  alu_result;
 
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch
@@ -143,13 +144,6 @@ assign if_hlt = &if_instruction[15:12];
 assign if_stall = (ex_opcode == OPCODE_B)    ? 1'b1 :
                   (ex_opcode == OPCODE_BR)   ? 1'b1 :
                   (ex_opcode == OPCODE_LW)   ? 1'b1 :
-                  (ex_opcode == OPCODE_LLB)  ? 1'b1 :
-                  (ex_opcode == OPCODE_LHB)  ? 1'b1 :
-                  (mem_opcode == OPCODE_B)   ? 1'b1 :
-                  (mem_opcode == OPCODE_BR)  ? 1'b1 :
-                  (mem_opcode == OPCODE_LW)  ? 1'b1 :
-                  (mem_opcode == OPCODE_LLB) ? 1'b1 :
-                  (mem_opcode == OPCODE_LHB) ? 1'b1 :
                                                1'b0;
 
 // The single cycle instruction memory
@@ -300,9 +294,15 @@ alu alu_instance (
 	.src_data_2 (ex_src_data_2),           // The register value from src_reg_2
 	.immediate  (ex_alu_immediate),        // The 4-bit immediate value
 	.opcode     (ex_opcode),
-	.alu_result (ex_alu_result),
+	.alu_result (alu_result),
 	.flags      (ex_alu_flags)
 );
+
+assign ex_alu_result = (ex_opcode == OPCODE_LHB) ? {ex_load_half_byte, ex_src_data_2[7:0]}  :
+											 (ex_opcode == OPCODE_LLB) ? {ex_src_data_2[15:8], ex_load_half_byte} :
+											 (ex_opcode == OPCODE_PCS) ? ex_pc_plus_two                           :
+											  alu_result;
+
 
 
 // Compress data for the ex_mem_register_input
@@ -311,8 +311,7 @@ assign ex_mem_register_input[31:16] = ex_src_data_2;
 assign ex_mem_register_input[47:32] = ex_alu_result;
 assign ex_mem_register_input[50:48] = ex_alu_flags;
 assign ex_mem_register_input[54:51] = ex_dest_reg;
-assign ex_mem_register_input[62:55] = ex_load_half_byte;
-assign ex_mem_register_input[63] = 1'b0;
+assign ex_mem_register_input[63:55] = 1'b0;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
@@ -346,9 +345,6 @@ assign mem_wr = (mem_opcode == OPCODE_SW) ? 1'b1 : 1'b0;
 // that's why it's the default case
 assign mem_reg_write_value =
 	(mem_opcode == OPCODE_LW)  ? mem_data_out :
-	(mem_opcode == OPCODE_LHB) ? {mem_load_half_byte, mem_data_in[7:0]} :
-	(mem_opcode == OPCODE_LLB) ? {mem_data_in[15:8], mem_load_half_byte} :
-	(mem_opcode == OPCODE_PCS) ? mem_pc_plus_two :
 	                             mem_alu_result;
 
 
