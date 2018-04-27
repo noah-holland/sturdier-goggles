@@ -4,7 +4,7 @@
 // Author: Ryan Job (rjob@wisc.edu)
 //
 // Class: ECE 552
-// Assignment: Project 3
+// Assignment: HW9
 //
 // How this works:
 //   - Wait in STATE_IDLE until a miss is detected
@@ -25,24 +25,37 @@ module cache_fill_fsm (
 	input   wire            clk,
 	input   wire            rst_n,
 
-	input   wire            miss_detected,      // A cache miss was detected
-	input   wire    [15:0]  miss_address,       // The address that had the miss
+	output  wire            fsm_busy,
 
-	output  wire            fsm_busy,           // This FSM is busy
+	// Miss detected comes from I_Cache. Address comes from PC
+	input   wire            i_cache_miss_detected,
+	input   wire    [15:0]  i_cache_miss_address,
 
-	output  wire            write_data_array,   // Enable signal for cache data array
-	output  wire            write_tag_array,    // Once all words filled in, 
+	// Goes to the I_Cache thing
+	output  wire            write_i_cache_data_array,
+	output  wire            write_i_cache_tag_array,
 
+	// Miss detected comes from D_Cache. Address comes from somewhere in CPU
+	input   wire            d_cache_miss_detected,
+	input   wire    [15:0]  d_cache_miss_address,
+
+	// Goes to the D_Cache thing
+	output  wire            write_d_cache_data_array,
+	output  wire            write_d_cache_tag_array,
+
+	// Goes to/from the memory module
 	output  wire    [15:0]  memory_address,
 	input   wire            memory_data_valid
 );
 
 
 // The lines and parameters used to determine the FSM state
-wire            state;
-wire            next_state;
-localparam STATE_IDLE = 1'b0;
-localparam STATE_BUSY = 1'b1;
+wire    [1:0]   state;
+wire    [1:0]   next_state;
+localparam STATE_IDLE           = 2'h0;
+localparam STATE_UPDATE_D_CACHE = 2'h1;
+localparam STATE_UPDATE_I_CACHE = 2'h2;
+localparam STATE_UNUSED         = 2'h3;
 
 // Stores the partial memory address (the top 12 bits of the memory address)
 wire    [11:0]  partial_memory_address;
@@ -62,7 +75,7 @@ wire            reading_last_word;
 ////////////////////////////////////////////////////////////////////////////////
 
 // The DFF module to store the 'state' value
-dff state_dff_instance (
+dff state_dff_instance[1:0] (
 	.q      (state),
 	.d      (next_state),
 	.wen    (1'b1),
@@ -77,7 +90,7 @@ dff state_dff_instance (
 // bits of 'miss_address'
 dff partial_memory_address_instance[11:0] (
 	.q      (partial_memory_address),
-	.d      (next_partial_memory_address),
+	.d      (next_partial_memory_address[11:0]),
 	.wen    (1'b1),
 	.clk    (clk),
 	.rst    (~rst_n)
@@ -105,34 +118,47 @@ incrementer_3_bit words_read_incrementer_instance (
  // Assign Statements
 ////////////////////////////////////////////////////////////////////////////////
 
-// Next-state logic to feed into the 'state' DFF. Basically, go to STATE_IDLE
-// on reset. If in STATE_IDLE and a miss was detected, go to STATE_BUSY. If in
-// STATE_BUSY and both 'reading_last_word' and 'memory_data_valid' are
-// asserted, then the last word is being read, so go back to STATE_IDLE.
-// Otherwise, just stay in whatever the current state is
+// Next-state logic to feed into the 'state' DFF.
+// On reset, go to STATE_IDLE.
+// If in the unused state somehow, go to STATE_IDLE.
+// If currently in STATE_IDLE and a cache miss was detected, the D_Cache takes
+//     precedence over the I_Cache.
+// If currently updating the D_Cache and 'reading_last_word' is asserted, then
+//     either go to STATE_UPDATE_I_CACHE or STATE_IDLE depending on if there's
+//     an I_Cache miss.
+// If not in STATE_IDLE and 'reading_last_word' is asserted, then go to
+//     STATE_IDLE (only reached if the previous case was false)
+// If none of the above cases are taken, then it just stays in the current state
 
 assign next_state =
 	~rst_n ? STATE_IDLE :
-	(~|(state ^ STATE_IDLE) & miss_detected) ? STATE_BUSY :
-	(~|(state ^ STATE_BUSY) & reading_last_word & memory_data_valid) ? STATE_IDLE :
+	(~|(state ^ STATE_UNUSED)) ? STATE_IDLE :
+	(~|(state ^ STATE_IDLE) & d_cache_miss_detected) ? STATE_UPDATE_D_CACHE :
+	(~|(state ^ STATE_IDLE) & i_cache_miss_detected) ? STATE_UPDATE_I_CACHE :
+	(~|(state ^ STATE_UPDATE_D_CACHE) & reading_last_word & i_cache_miss_detected) ? STATE_UPDATE_I_CACHE :
+	(|(state ^ STATE_IDLE) & reading_last_word) ? STATE_IDLE :
 		state;
 
-
-// The FSM is busy whenever it's not in STATE_IDLE
+// The FSM is busy whenever it's not in STATE_IDLE. This can thus be an OR
+// reduction of state ^ STATE_IDLE.
 assign fsm_busy = |(state ^ STATE_IDLE);
 
 
-// On reset, clear the partial memory address to 0 just cuz.
-// When in STATE_IDLE and a miss was detected, capture the upper 12 bits of
-// 'miss_address' and store it in 'partial_memory_address_instance'.
-// Otherwise, leave it alone
+// On reset, reset the partial memory address to 0 just cuz.
+// If not changing state (state == next_state), then leave it alone.
+// If next_state is STATE_UPDATE_D_CACHE, then get the top 12 bits of
+//     'd_cache_miss_address'.
+// If next_state is STATE_UPDATE_I_CACHE, then get the top 12 bits of
+//     'i_cache_miss_address'.
+// If none of these are taken, then just leave it alone.
 assign next_partial_memory_address =
 	~rst_n ? 12'h0 :
-	(~(state ^ STATE_IDLE) & miss_detected) ? miss_address[15:4] :
+	|(state ^ next_state) ? partial_memory_address :
+	~|(next_state ^ STATE_UPDATE_D_CACHE) ? d_cache_miss_address[15:4] :
+	~|(next_state ^ STATE_UPDATE_I_CACHE) ? i_cache_miss_address[15:4] :
 		partial_memory_address;
 
 
-// The upper 12 bits are 'partial_memory_address' cuz that's what it's for.
 // The lower 4 bits of memory_address is the word being read and a 0 (since
 // words are 2 bits wide)
 assign memory_address = {partial_memory_address, words_read, 1'b0};
@@ -151,16 +177,24 @@ assign next_words_read =
 assign reading_last_word = &words_read;
 
 
-// When in STATE_IDLE, do not write to the data array. When in other states,
-// write to the data array when the memory data is valid
-assign write_data_array =
-	(state == STATE_BUSY) ? memory_data_valid : 1'b0;
+// When in whichever state for updating a cache, write data whenever memory
+// data is valid. Otherwise, do not write to the data array.
+assign write_d_cache_data_array =
+	(state == STATE_UPDATE_D_CACHE) ? memory_data_valid : 1'b0;
+
+assign write_i_cache_data_array =
+	(state == STATE_UPDATE_I_CACHE) ? memory_data_valid : 1'b0;
 
 
 // Write to the tag array when also writing the last word of the block. This
 // happens when 'reading_last_word' and 'memory_data_valid' are both asserted.
-// 'reading_last_word' will only ever be asserted when in STATE_BUSY.
-assign write_tag_array = reading_last_word & memory_data_valid;
+// Also, make sure it's in the correct state for each of the cache write
+// signals.
+assign write_d_cache_tag_array =
+	(state == STATE_UPDATE_D_CACHE) ? reading_last_word & memory_data_valid : 1'b0;
+
+assign write_i_cache_tag_array =
+	(state == STATE_UPDATE_I_CACHE) ? reading_last_word & memory_data_valid : 1'b0;
 
 
 endmodule
