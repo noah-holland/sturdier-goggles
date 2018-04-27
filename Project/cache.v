@@ -1,3 +1,8 @@
+////////////////////////////////////////////////////////////////
+/// This module instantiates the data array and meta data array
+/// as well as decodes the address for the arrays.
+////////////////////////////////////////////////////////////////
+
 module cache(
 	input  wire clk,
 	input  wire rst_n,
@@ -37,6 +42,7 @@ module cache(
 		.DataOut(tag_check)
 	);
 
+	//Only output the data from cache if were reading
 	assign data_out = ~cache_enable ? 16'h0 : 
 				data_write ? 16'h0 : data_out_internal;
 
@@ -45,7 +51,7 @@ module cache(
 	       (full_tag != tag_check) ? cache_enable :
 					1'b0;
 
-	//Read address assigns
+	//Address assigns
 	//Set the tag for reading in MetaData
 	assign tag = address[15:11];
 
