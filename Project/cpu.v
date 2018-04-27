@@ -117,17 +117,16 @@ wire            ram_data_valid;
 wire            cache_stall;
 wire    [15:0]  fsm_update_address;
 wire    [15:0]  ram_address;
+wire    [15:0]  ram_data_out;
 
 wire            instr_cache_miss;
 wire            instr_cache_write_tag;
 wire            instr_cache_write_data;
-wire    [15:0]  instr_cache_miss_addr;
 
 wire            de_cache_miss;
 wire            de_cache_write_tag;
 wire            de_cache_write_data;
 wire    [15:0]  de_cache_data_in;
-wire    [15:0]  de_cache_miss_addr;
 
 
   //////////////////////////////////////////////////////////////////////////////
@@ -138,10 +137,10 @@ wire    [15:0]  de_cache_miss_addr;
 assign ram_address = cache_stall ? fsm_update_address : mem_alu_result;
 
 memory4c memory4c_instance (
-	.data_out   (mem_data_out),
+	.data_out   (ram_data_out),
 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
 	.addr       (ram_address),          // The address always comes from the ALU
-	.enable     (1'b1),                 // Always read until hlt is asserted
+	.enable     (cache_stall | mem_wr),                 // Always read until hlt is asserted
 	.wr         (mem_wr),
 	.clk        (clk),
 	.rst        (~rst_n),
@@ -153,13 +152,13 @@ cache instr_cache (
 	.rst_n          (rst_n),
 	.tag_write      (instr_cache_write_tag),
 	.data_write     (instr_cache_write_data),
-	.cache_enable    (1'b1),
+	.cache_enable   (1'b1),
 	.read_address   (if_pc),
 	.write_address  (ram_address),
-	.data_in        (16'h0000),
+	.data_in        (ram_data_out),
 	.data_out       (if_instruction),
 	.cache_miss     (instr_cache_miss)
-	);
+);
 
 cache de_cache (
 	.clk            (clk),
@@ -180,18 +179,18 @@ cache_fill_fsm cache_fill_fsm_instance  (
 	.rst_n                      (rst_n),
 	.fsm_busy                   (cache_stall),
 	.i_cache_miss_detected      (instr_cache_miss),
-	.i_cache_miss_address       (instr_cache_miss_addr),
+	.i_cache_miss_address       (if_pc),
 	.write_i_cache_data_array   (instr_cache_write_data),
 	.write_i_cache_tag_array    (instr_cache_write_tag),
 	.d_cache_miss_detected      (de_cache_miss),
-	.d_cache_miss_address       (de_cache_miss_addr),
+	.d_cache_miss_address       (mem_alu_result),
 	.write_d_cache_data_array   (de_cache_write_data),
 	.write_d_cache_tag_array    (de_cache_write_tag),
 	.memory_address             (fsm_update_address),
 	.memory_data_valid          (ram_data_valid)
 );
 
-assign de_cache_data_in = mem_wr == 1'b1 ? mem_data_in : de_cache_write_data;
+assign de_cache_data_in = mem_wr == 1'b1 ? mem_data_in : ram_data_out;
 
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch

@@ -1,5 +1,5 @@
 module cpu_ptb();
-  
+
 
    wire [15:0] PC;
    wire [15:0] Inst;           /* This should be the 15 bits of the FF that
@@ -19,7 +19,7 @@ module cpu_ptb();
    wire        ICacheReq;
 
    wire        Halt;         /* Halt executed and in Memory or writeback stage */
-        
+
    integer     inst_count;
    integer     cycle_count;
 
@@ -36,10 +36,10 @@ module cpu_ptb();
    reg clk; /* Clock input */
    reg rst_n; /* (Active low) Reset input */
 
-     
 
-   cpu DUT(.clk(clk), .rst_n(rst_n), .pc_out(PC), .hlt(Halt)); /* Instantiate your processor */
-   
+
+   cpu DUT(.clk(clk), .rst_n(rst_n), .pc(PC), .hlt(Halt)); /* Instantiate your processor */
+
 
 
 
@@ -58,7 +58,7 @@ module cpu_ptb();
 
       trace_file = $fopen("verilogsim.ptrace");
       sim_log_file = $fopen("verilogsim.plog");
-      
+
    end
 
 
@@ -80,7 +80,7 @@ module cpu_ptb();
     always #50 begin   // delay 1/2 clock period each time thru loop
       clk = ~clk;
     end
-	
+
     always @(posedge clk) begin
     	cycle_count = cycle_count + 1;
 	if (cycle_count > 100000) begin
@@ -103,17 +103,17 @@ module cpu_ptb();
             inst_count = inst_count + 1;
          end
 	 if (DCacheHit) begin
-            DCacheHit_count = DCacheHit_count + 1;	 	
-         end	
+            DCacheHit_count = DCacheHit_count + 1;
+         end
 	 if (ICacheHit) begin
-            ICacheHit_count = ICacheHit_count + 1;	 	
-	 end    
+            ICacheHit_count = ICacheHit_count + 1;
+	 end
 	 if (DCacheReq) begin
-            DCacheReq_count = DCacheReq_count + 1;	 	
-         end	
+            DCacheReq_count = DCacheReq_count + 1;
+         end
 	 if (ICacheReq) begin
-            ICacheReq_count = ICacheReq_count + 1;	 	
-	 end 
+            ICacheReq_count = ICacheReq_count + 1;
+	 end
 
          $fdisplay(sim_log_file, "SIMLOG:: Cycle %d PC: %8x I: %8x R: %d %3d %8x M: %d %d %8x %8x %8x",
                   cycle_count,
@@ -130,7 +130,7 @@ module cpu_ptb();
          if (RegWrite) begin
             $fdisplay(trace_file,"REG: %d VALUE: 0x%04x",
                       WriteRegister,
-                      WriteData );            
+                      WriteData );
          end
          if (MemRead) begin
             $fdisplay(trace_file,"LOAD: ADDR: 0x%04x VALUE: 0x%04x",
@@ -155,9 +155,9 @@ module cpu_ptb();
             $fclose(sim_log_file);
 	    #5;
             $finish;
-         end 
+         end
       end
-      
+
    end
    /* Assign internal signals to top level wires
       The internal module names and signal names will vary depending
@@ -165,54 +165,54 @@ module cpu_ptb();
 
    // Edit the example below. You must change the signal
    // names on the right hand side
-    
+
 //   assign PC = DUT.fetch0.pcCurrent; //You won't need this because it's part of the main cpu interface
-   
+
 //   assign Halt = DUT.memory0.halt; //You won't need this because it's part of the main cpu interface
    // Is processor halted (1 bit signal)
-   
 
-   assign Inst = DUT.p0.instr;
+
+   assign Inst = DUT.if_instruction;
    //Instruction fetched in the current cycle
-   
-   assign RegWrite = DUT.p0.regWrite;
+
+   assign RegWrite = DUT.wb_reg_write;
    // Is register file being written to in this cycle, one bit signal (1 means yes, 0 means no)
-  
-   assign WriteRegister = DUT.p0.DstwithJmout;
+
+   assign WriteRegister = DUT.wb_dest_reg;
    // If above is true, this should hold the name of the register being written to. (4 bit signal)
-   
-   assign WriteData = DUT.p0.wData;
+
+   assign WriteData = DUT.wb_reg_write_value;
    // If above is true, this should hold the Data being written to the register. (16 bits)
-   
-   assign MemRead =  (DUT.p0.memRxout & ~DUT.p0.notdonem);
+
+   assign MemRead =  ((DUT.instr_cache_miss | DUT.de_cache_miss) & ~DUT.cache_stall);
    // Is memory being read from, in this cycle. one bit signal (1 means yes, 0 means no)
-   
-   assign MemWrite = (DUT.p0.memWxout & ~DUT.p0.notdonem);
+
+   assign MemWrite = (DUT.mem_wr);
    // Is memory being written to, in this cycle (1 bit signal)
-   
-   assign MemAddress = DUT.p0.data1out;
+
+   assign MemAddress = DUT.ram_address;
    // If there's a memory access this cycle, this should hold the address to access memory with (for both reads and writes to memory, 16 bits)
-   
-   assign MemDataIn = DUT.p0.data2out;
+
+   assign MemDataIn = DUT.mem_data_in;
    // If there's a memory write in this cycle, this is the Data being written to memory (16 bits)
-   
-   assign MemDataOut = DUT.p0.readData;
+
+   assign MemDataOut = DUT.mem_data_out;
    // If there's a memory read in this cycle, this is the data being read out of memory (16 bits)
 
-   assign ICacheReq = DUT.p0.icr;
+   assign ICacheReq = ~DUT.instr_cache.data_write & DUT.instr_cache.cache_enable;
    // Signal indicating a valid instruction read request to cache
-   
-   assign ICacheHit = DUT.p0.ich;
+
+   assign ICacheHit = ~DUT.instr_cache.cache_miss & DUT.instr_cache.cache_enable;
    // Signal indicating a valid instruction cache hit
 
-   assign DCacheReq = DUT.p0.dcr;
+   assign DCacheReq = ~DUT.de_cache.data_write & DUT.de_cache.cache_enable;
    // Signal indicating a valid instruction data read or write request to cache
-   
-   assign DCacheHit = DUT.p0.dch;
+
+   assign DCacheHit = ~DUT.de_cache.cache_miss & DUT.de_cache.cache_enable;
    // Signal indicating a valid data cache hit
 
 
    /* Add anything else you want here */
 
-   
+
 endmodule
