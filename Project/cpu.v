@@ -334,13 +334,17 @@ register_file register_file_instance (
 );
 
 // Only forward data from the alu if we are doing an arithmetic operation
-assign forward_alu_data = ~ex_opcode[3];
+assign forward_alu_data = ~ex_opcode[3] |
+							(ex_opcode == OPCODE_PCS) |
+							(ex_opcode == OPCODE_LHB) |
+							(ex_opcode == OPCODE_LLB);
 
 // Only forward data from the mem if we are doing a load
 assign forward_mem_data = (~mem_opcode[3])           |
                           (mem_opcode == OPCODE_LW)  |
-                          (mem_opcode == OPCODE_LHB) |
-                          (mem_opcode == OPCODE_LLB);
+													(mem_opcode == OPCODE_PCS)  |
+													(mem_opcode == OPCODE_LHB)  |
+													(mem_opcode == OPCODE_LLB);
 
 
 // Data forward to id_src_reg_1
