@@ -18,7 +18,7 @@
 
 // NO IMPLICIT DECLARATIONS BECAUSE THOSE ARE HORRIBLE
 // ^bump
-`default_nettype none
+//`default_nettype none
 
   //////////////////////////////////////////////////////////////////////////////
  // Declaration of the module and internal signals
@@ -126,7 +126,7 @@ wire    [15:0]  instr_cache_miss_addr;
 wire            de_cache_miss;
 wire            de_cache_write_tag;
 wire            de_cache_write_data;
-wire            de_cache_data_in;
+wire    [15:0]  de_cache_data_in;
 wire    [15:0]  de_cache_miss_addr;
 
 
