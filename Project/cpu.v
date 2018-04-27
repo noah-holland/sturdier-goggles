@@ -18,7 +18,7 @@
 
 // NO IMPLICIT DECLARATIONS BECAUSE THOSE ARE HORRIBLE
 // ^bump
-//`default_nettype none
+`default_nettype none
 
   //////////////////////////////////////////////////////////////////////////////
  // Declaration of the module and internal signals
@@ -52,7 +52,6 @@ localparam OPCODE_HLT    = 4'hF;
 
 // Line used to control the hlt DFF
 wire            old_hlt;
-
 
 wire    [15:0]  if_instruction;
 wire    [15:0]  if_pc;
@@ -92,7 +91,6 @@ wire    [7:0]   ex_load_half_byte;
 wire    [63:0]  ex_mem_register_input;
 wire    [63:0]  ex_mem_register_output;
 
-wire            cache_stall;
 wire    [3:0]   mem_opcode;
 wire    [15:0]  mem_pc_plus_two;
 wire    [15:0]  mem_data_in;		// Gets ex_src_data_2
@@ -112,7 +110,88 @@ wire    [3:0]   wb_opcode;
 wire    [3:0]   wb_dest_reg;
 wire    [15:0]  wb_reg_write_value;
 
+wire            forward_mem_data;
+wire            forward_alu_data;
 
+wire            ram_data_valid;
+wire            cache_stall;
+wire    [15:0]  fsm_update_address;
+wire    [15:0]  ram_address;
+
+wire            instr_cache_miss;
+wire            instr_cache_write_tag;
+wire            instr_cache_write_data;
+wire    [15:0]  instr_cache_miss_addr;
+
+wire            de_cache_miss;
+wire            de_cache_write_tag;
+wire            de_cache_write_data;
+wire            de_cache_data_in;
+wire    [15:0]  de_cache_miss_addr;
+
+
+  //////////////////////////////////////////////////////////////////////////////
+ // Pipeline Stage 1: Instrucgtion Fetch
+////////////////////////////////////////////////////////////////////////////////
+
+// Get address from the Cache Update FSM when stalling from a cache miss
+assign ram_address = cache_stall ? fsm_update_address : mem_alu_result;
+
+memory4c memory4c_instance (
+	.data_out   (mem_data_out),
+	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
+	.addr       (ram_address),          // The address always comes from the ALU
+	.enable     (1'b1),                 // Always read until hlt is asserted
+	.wr         (mem_wr),
+	.clk        (clk),
+	.rst        (~rst_n),
+	.data_valid (ram_data_valid)
+);
+
+cache instr_cache (
+	.clk            (clk),
+	.rst_n          (rst_n),
+	.tag_write      (instr_cache_write_tag),
+	.data_write     (instr_cache_write_data),
+	.cache_enable    (1'b1),
+	.read_address   (if_pc),
+	.write_address  (ram_address),
+	.data_in        (16'h0000),
+	.data_out       (if_instruction),
+	.cache_miss     (instr_cache_miss)
+	);
+
+cache de_cache (
+	.clk            (clk),
+	.rst_n          (rst_n),
+	.tag_write      (de_cache_write_tag),
+	.data_write     (de_cache_write_data),
+	.cache_enable   (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
+	.read_address   (mem_alu_result),
+	.write_address  (ram_address),
+	.data_in        (de_cache_data_in),
+	.data_out       (mem_data_out),
+	.cache_miss     (de_cache_miss)
+);
+
+
+cache_fill_fsm cache_fill_fsm_instance  (
+	.clk                        (clk),
+	.rst_n                      (rst_n),
+	.fsm_busy                   (cache_stall),
+	.i_cache_miss_detected      (instr_cache_miss),
+	.i_cache_miss_address       (instr_cache_miss_addr),
+	.write_i_cache_data_array   (instr_cache_write_data),
+	.write_i_cache_tag_array    (instr_cache_write_tag),
+	.d_cache_miss_detected      (de_cache_miss),
+	.d_cache_miss_address       (de_cache_miss_addr),
+	.write_d_cache_data_array   (de_cache_write_data),
+	.write_d_cache_tag_array    (de_cache_write_tag),
+	.memory_address             (fsm_update_address),
+	.memory_data_valid          (ram_data_valid)
+);
+
+assign de_cache_data_in = mem_wr == 1'b1 ? mem_data_in : de_cache_write_data;
 
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch
@@ -155,15 +234,15 @@ assign if_stall = (ex_opcode == OPCODE_B)    ? 1'b1 :
 
 // The single cycle instruction memory
 // The memory module was provided to us
-memory1c memory1c_instruction_instance (
-	.data_out	(if_instruction),
-	.data_in    (16'h0000),                 // Don't need to write ever
-	.addr       (if_pc),
-	.enable     (~old_hlt),                 // Always read until hlt is asserted
-	.wr         (1'b0),                     // Don't need to write ever
-	.clk        (clk),
-	.rst        (~rst_n)
-);
+// memory1c memory1c_instruction_instance (
+// 	.data_out	  (if_instruction),
+// 	.data_in    (16'h0000),                 // Don't need to write ever
+// 	.addr       (if_pc),
+// 	.enable     (~old_hlt),                 // Always read until hlt is asserted
+// 	.wr         (1'b0),                     // Don't need to write ever
+// 	.clk        (clk),
+// 	.rst        (~rst_n)
+// );
 
 // We want to flush the if register if theres a global reset, or we're told to
 // by the branching logic
@@ -313,7 +392,7 @@ assign ex_mem_register_input[47:32] = ex_alu_result;
 assign ex_mem_register_input[50:48] = ex_alu_flags;
 assign ex_mem_register_input[54:51] = ex_dest_reg;
 assign ex_mem_register_input[62:55] = ex_load_half_byte;
-assign ex_mem_register_input[63] = 1'b0;
+assign ex_mem_register_input[63]    = 1'b0;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
@@ -355,15 +434,15 @@ assign mem_reg_write_value =
 
 // The single cycle data memory
 // The memory module was provided to us
-memory1c memory1c_data_instance (
-	.data_out   (mem_data_out),
-	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
-	.addr       (mem_alu_result),       // The address always comes from the ALU
-	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
-	.wr         (mem_wr),
-	.clk        (clk),
-	.rst        (~rst_n)
-);
+// memory1c memory1c_data_instance (
+// 	.data_out   (mem_data_out),
+// 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
+// 	.addr       (mem_alu_result),       // The address always comes from the ALU
+// 	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
+// 	.wr         (mem_wr),
+// 	.clk        (clk),
+// 	.rst        (~rst_n)
+// );
 
 
 // Compress data for the mem_wb_register_input
