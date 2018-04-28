@@ -115,15 +115,19 @@ wire            forward_alu_data;
 
 wire            cache_stall;
 wire    [15:0]  ram_data_out;
-wire            ram_busy;
-wire            instr_cache_data_valid;
-wire            de_cache_data_valid;
+wire    [15:0]  ram_data_address;
 
 wire            instr_cache_miss;
 wire    [15:0]  instr_ram_address;
+wire            instr_cache_updating;
+wire            instr_cache_write_data_array;
+wire            instr_cache_write_tag_array;
 
 wire            de_cache_miss;
 wire    [15:0]  de_ram_address;
+wire            de_cache_updating;
+wire            de_cache_write_data_array;
+wire            de_cache_write_tag_array;
 
 wire    [15:0]  alu_result;
 
@@ -146,19 +150,27 @@ wire    [15:0]  alu_result;
 // );
 
 ram_controller ram_controller_instance (
-	.clk                  (clk),
-	.rst_n                (rst_n),
-	.ram_busy             (ram_busy),
-	.ram_write            (mem_wr),
-	.ram_write_data       (mem_data_in),
-	.ram_write_address    (mem_alu_result),
-	.ram_data_out         (ram_data_out),
-	.i_cache_miss         (instr_cache_miss),
-	.i_cache_miss_address (instr_ram_address),
-	.i_cache_data_valid   (instr_cache_data_valid),
-	.d_cache_miss         (de_cache_miss),
-	.d_cache_miss_address (de_ram_address),
-	.d_cache_data_valid   (de_cache_data_valid)
+	.clk                        (clk),
+	.rst_n                      (rst_n),
+
+	.ram_write                  (mem_wr),
+	.ram_write_data             (mem_data_in),
+	.ram_write_address          (mem_alu_result),
+
+	.ram_data_out               (ram_data_out),
+	.ram_data_address           (ram_data_address),
+
+	.i_cache_miss               (instr_cache_miss),
+	.i_cache_miss_address       (instr_ram_address),
+	.i_cache_updating           (instr_cache_updating),
+	.i_cache_write_data_array   (instr_cache_write_data_array),
+	.i_cache_write_tag_array    (instr_cache_write_tag_array),
+
+	.d_cache_miss               (de_cache_miss),
+	.d_cache_miss_address       (de_ram_address),
+	.d_cache_updating           (de_cache_updating),
+	.d_cache_write_data_array   (de_cache_write_data_array),
+	.d_cache_write_tag_array    (de_cache_write_tag_array),
 );
 
 cache_controller instr_cache (
@@ -168,11 +180,14 @@ cache_controller instr_cache (
 	.cache_enable       (1'b1),
 	.cache_address      (if_pc),
 	.data_in            (16'b0),
+	.memory_address     (ram_data_address)
 	.memory_data        (ram_data_out),
-	.memory_data_valid  (instr_cache_data_valid),
+	.memory_data_write  (instr_cache_write_data_array),
+	.memory_tag_write   (instr_cache_write_tag_array),
+	.miss_fixing        (instr_cache_updating),
 	.data_out           (if_instruction),
 	.cache_miss         (instr_cache_miss),
-	.memory_address     (instr_ram_address)
+	.miss_address       (instr_cache_miss_address)
 );
 
 cache_controller de_cache (
@@ -182,11 +197,14 @@ cache_controller de_cache (
 	.cache_enable       (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
 	.cache_address      (mem_alu_result),
 	.data_in            (mem_data_in),
+	.memory_address     (ram_data_address),
 	.memory_data        (ram_data_out),
-	.memory_data_valid  (de_cache_data_valid),
+	.memory_data_write  (de_cache_write_data_array),
+	.memory_tag_write   (de_cache_write_tag_array),
+	.miss_fixing        (de_cache_updating),
 	.data_out           (mem_data_out),
 	.cache_miss         (de_cache_miss),
-	.memory_address      (de_ram_address)
+	.miss_address       (de_ram_address)
 );
 
 // cache instr_cache (

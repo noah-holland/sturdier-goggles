@@ -23,26 +23,28 @@ module ram_controller (
 	input   wire            clk,
 	input   wire            rst_n,
 
-	// Indicates that the RAM module is busy
-	output  wire            ram_busy,
-
 	// Used for writing data
 	input   wire            ram_write,
 	input   wire    [15:0]  ram_write_data,
 	input   wire    [15:0]  ram_write_address,
 
-	// The primary output signal for RAM data (used when updating a cache)
+	// The primary output signals for RAM data (used when updating a cache)
+	output  wire    [15:0]  ram_data_address,
 	output  wire    [15:0]  ram_data_out,
 
 	// The signals used for cache updates to the instruction cache
 	input   wire            i_cache_miss,
 	input   wire    [15:0]  i_cache_miss_address,
-	output  wire            i_cache_data_valid,
+	output  wire            i_cache_updating,
+	output  wire            i_cache_write_data_array,
+	output  wire            i_cache_write_tag_array,
 
 	// The signals used for cache updates to the data cache
 	input   wire            d_cache_miss,
 	input   wire    [15:0]  d_cache_miss_address,
-	output  wire            d_cache_data_valid
+	output  wire            d_cache_updating,
+	output  wire            d_cache_write_data_array,
+	output  wire            d_cache_write_tag_array,
 );
 
 
@@ -57,6 +59,16 @@ localparam STATE_UNUSED         = 2'd3;     // Effectively the same as IDLE
 // Lines to determine the current and next state of this FSM
 wire    [1:0]   state;
 wire    [1:0]   next_state;
+
+// Counts how many words have been read from memory
+wire    [3:0]   read_word;
+wire    [3:0]   read_word_plus_one;
+wire    [3:0]   next_read_word;
+
+// Counts how many words have been returned to the cache
+wire    [3:0]   return_word;
+wire    [3:0]   return_word_plus_one;
+wire    [3:0]   next_return_word;
 
 // Lines going to/from the memory instance
 wire            memory_enable;
@@ -81,6 +93,7 @@ memory4c memory_instance (
 	.data_valid (memory_data_valid)
 );
 
+
 // The current state of this FSM. This is a 2-bit FSM
 dff current_state_instance[1:0] (
 	.q      (state),
@@ -91,79 +104,131 @@ dff current_state_instance[1:0] (
 );
 
 
+// The DFF modules to store the 'read_word' value
+dff read_word_dff_instance[3:0] (
+	.q      (read_word),
+	.d      (next_read_word),
+	.wen    (1'b1),
+	.clk    (clk),
+	.rst    (~rst_n)
+);
+
+
+// The DFF modules to store the 'return_word' value
+dff return_word_dff_instance[3:0] (
+	.q      (return_word),
+	.d      (next_return_word),
+	.wen    (1'b1),
+	.clk    (clk),
+	.rst    (~rst_n)
+);
+
+
+// A 4-bit incrementer to increment 'read_word'
+incrementer_4_bit read_word_incrementer_instance (
+	.input_value  (read_word),
+	.output_value (read_word_plus_one)
+);
+
+
+// A 4-bit incrementer to increment 'return_word'
+incrementer_4_bit return_word_incrementer_instance (
+	.input_value  (return_word),
+	.output_value (return_word_plus_one)
+);
+
+
   //////////////////////////////////////////////////////////////////////////////
- // Basic Assign Statements
+ // Assign Statements
 ////////////////////////////////////////////////////////////////////////////////
 
 //
-// In either of the CACHE_UPDATE states, stay in the state until the
-//     'memory_data_valid' signal is asserted, then go to STATE_IDLE.
-//
-// STATE_UNUSED will be have exactly like STATE_IDLE since it's invalid.
-//
-// In STATE_IDLE, the order of precedence of what happens next is as follows:
-//     1) Write data to the RAM/memory (ram_write asserted)
-//	       - Stays in STATE_IDLE since writes are only one clock cycle
-//     2) Read data for the I-Cache (i_cache_miss asserted)
-//         - Go to STATE_I_CACHE_UPDATE
-//     3) Read data for the D-Cache (d_cache_miss asserted)
-//	       - Go to STATE_D_CACHE_UPDATE
-//     4) Stay in STATE_IDLE
+// Next-state logic to feed into the 'state' DFF.
+// On reset, go to STATE_IDLE.
+// If in the unused state somehow, go to STATE_IDLE.
+// If currently in STATE_IDLE and a cache miss was detected, the D_Cache takes
+//     precedence over the I_Cache.
+// If currently updating the D_Cache and 'reading_last_word' is asserted, then
+//     either go to STATE_UPDATE_I_CACHE or STATE_IDLE depending on if there's
+//     an I_Cache miss.
+// If not in STATE_IDLE and 'reading_last_word' is asserted, then go to
+//     STATE_IDLE (only reached if the previous case was false)
+// If none of the above cases are taken, then it just stays in the current state
 //
 assign next_state =
-	state == STATE_I_CACHE_UPDATE ?
-		(memory_data_valid ? STATE_IDLE : STATE_I_CACHE_UPDATE) :
-	state == STATE_D_CACHE_UPDATE ?
-		(memory_data_valid ? STATE_IDLE : STATE_D_CACHE_UPDATE) :
-	// state == STATE_IDLE or state == STATE_UNUSED
-	ram_write    ? STATE_IDLE :
-	i_cache_miss ? STATE_I_CACHE_UPDATE :
-	d_cache_miss ? STATE_D_CACHE_UPDATE :
-				   STATE_IDLE;
+	(~rst_n) ? STATE_IDLE :
+	(state == STATE_UNUSED) ? STATE_IDLE :
+	((state == STATE_I_CACHE_UPDATE) & d_cache_miss) ? STATE_D_CACHE_UPDATE :
+	((state == STATE_IDLE) & ram_write)    ? STATE_IDLE :
+	((state == STATE_IDLE) & d_cache_miss) ? STATE_D_CACHE_UPDATE :
+	((state == STATE_IDLE) & i_cache_miss) ? STATE_I_CACHE_UPDATE :
+	((state != STATE_IDLE) & return_word_plus_one[3]) ? STATE_IDLE :
+		state;
 
 
-// The RAM is busy whenever not in STATE_IDLE. Thus, it's just the ORs
-// reduction of next_state.
-assign ram_busy = |next_state;
+// When in STATE_IDLE, clear this to 0. Otherwise, increment it until it gets
+// to 4'h8 (increment it while read_word[3] == 0).
+assign next_read_word =
+	((state == STATE_I_CACHE_UPDATE) & d_cache_miss) ? 4'h0 :
+	(state == STATE_IDLE) ? 4'h0 :
+	(~read_word[3])       ? read_word_plus_one :
+	                        read_word;
 
 
-// We need to enable the memory when either reading from it or writing to it.
-// Reading from memory occurrs when 'next_state' is not STATE_IDLE.
-// Since STATE_IDLE is state == 0, we can use an OR reduction on 'next_state'.
-assign memory_enable = i_cache_miss | d_cache_miss | memory_write;
+// The 'return_word' signal must be carefully timed.
+// If 'read_word' equals 4'h3, then increment.
+// If 'return_word[3]' is 1, then 'return_word' gets cleared.
+// If 'return_word' is nonzero, then increment.
+assign next_return_word =
+	((state == STATE_I_CACHE_UPDATE) & d_cache_miss) ? 4'h0 :
+	(read_word == 4'h3)       ? return_word_plus_one :
+	(return_word_plus_one[3]) ? 4'h0 :
+	(|return_word)            ? return_word_plus_one :
+	                            return_word;
+
+
+// The I-Cache and D-Cache are updaing if in STATE_I_CACHE_UPDATE or
+// STATE_D_CACHE_UPDATE respectively.
+assign i_cache_updating = (state == STATE_I_CACHE_UPDATE) ? 1'b1 : 1'b0;
+assign d_cache_updating = (state == STATE_D_CACHE_UPDATE) ? 1'b1 : 1'b0;
+
+
+// The caches need to know what address the data is coming from
+assign ram_data_address =
+	(state == STATE_I_CACHE_UPDATE) ? {i_cache_miss_address[15:4], return_word[2:0], 1'b0} :
+	(state == STATE_D_CACHE_UPDATE) ? {d_cache_miss_address[15:4], return_word[2:0], 1'b0} :
+		ram_write_address;
+
+
+// We need to enable the memory when writing to it (only happens in STATE_IDLE).
+// When not in STATE_IDLE, we are reading from memory, so keep the enable high
+//     until 'read_word[3]' is 1, meaning that all 8 addresses we need to read
+//     has been sent to the memory
+assign memory_enable =
+	(state == STATE_IDLE) ? ram_write : ~read_word[3];
 
 
 // We need to enable memory writing when in STATE_IDLE and 'ram_write' is
 // asserted.
 assign memory_write =
-	state == STATE_IDLE ? ram_write : 1'b0;
+	(state == STATE_IDLE) ? ram_write : 1'b0;
 
 
-// The 'memory_address' signal needs to be chosen based on the state.
-// If in STATE_I_CACHE_UPDATE, then it should be 'i_cache_miss_address'.
-// If in STATE_D_CACHE_UPDATE, then it should be 'd_cache_miss_address'.
-// If in STATE_UNUSED, then treat it like STATE_IDLE.
-// If in STATE_IDLE and 'ram_write' is asserted, then it should be
-//     'ram_write_address'.
-// If none of these cases are done, then let's just use the dummy address 0.
+//TODO: Comment this better
 assign memory_address =
-	state == STATE_I_CACHE_UPDATE ? i_cache_miss_address :
-	state == STATE_D_CACHE_UPDATE ? d_cache_miss_address :
-	// state == STATE_IDLE or state == STATE_UNUSED
-	ram_write ? ram_write_address :
-	            16'h0;
+	(state == STATE_I_CACHE_UPDATE) ? {i_cache_miss_address[15:4], read_word[2:0], 1'b0} :
+	(state == STATE_D_CACHE_UPDATE) ? {d_cache_miss_address[15:4], read_word[2:0], 1'b0} :
+	                                  ram_write_address;
 
 
-// When in STATE_I_CACHE_UPDATE, 'i_cache_data_valid' gets 'memory_data_valid'.
-// Otherwise, it stays deasserted.
-assign i_cache_data_valid =
-	state == STATE_I_CACHE_UPDATE ? memory_data_valid : 1'b0;
+// Have the caches write to the data array if updating that cache and
+// 'memory_data_valid' is asserted. Also have them write to their tag array if
+// 'return_word' equals 4'h7
+assign i_cache_write_data_array = i_cache_updating & memory_data_valid;
+assign i_cache_write_tag_array  = i_cache_updating & (return_word == 4'h7);
 
-
-// When in STATE_D_CACHE_UPDATE, 'd_cache_data_valid' gets 'memory_data_valid'.
-// Otherwise, it stays deasserted.
-assign d_cache_data_valid =
-	state == STATE_D_CACHE_UPDATE ? memory_data_valid : 1'b0;
+assign d_cache_write_data_array = d_cache_updating & memory_data_valid;
+assign d_cache_write_tag_array  = d_cache_updating & (return_word == 4'h7);
 
 
 endmodule
