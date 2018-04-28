@@ -113,41 +113,52 @@ wire    [15:0]  wb_reg_write_value;
 wire            forward_mem_data;
 wire            forward_alu_data;
 
-wire            ram_data_valid;
 wire            cache_stall;
-wire    [15:0]  fsm_update_address;
-wire    [15:0]  ram_address;
 wire    [15:0]  ram_data_out;
+wire            ram_busy;
+wire            instr_cache_data_valid;
+wire            de_cache_data_valid;
 
 wire            instr_cache_miss;
-wire            instr_cache_write_tag;
-wire            instr_cache_write_data;
-wire            instr_ram_address;
+wire    [15:0]  instr_ram_address;
 
 wire            de_cache_miss;
-wire            de_cache_write_tag;
-wire            de_cache_write_data;
-wire    [15:0]  de_cache_data_in;
-wire            de_ram_address;
+wire    [15:0]  de_ram_address;
 
 wire    [15:0]  alu_result;
 
   //////////////////////////////////////////////////////////////////////////////
- // Pipeline Stage 1: Instrucgtion Fetch
+ // RAM, Instruction Cache, and Data Cache
 ////////////////////////////////////////////////////////////////////////////////
 
-// Get address from the Cache Update FSM when stalling from a cache miss
-assign ram_address = cache_stall ? fsm_update_address : mem_alu_result;
+// // Get address from the Cache Update FSM when stalling from a cache miss
+// assign ram_address = cache_stall ? fsm_update_address : mem_alu_result;
+//
+// memory4c memory4c_instance (
+// 	.data_out   (ram_data_out),
+// 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
+// 	.addr       (ram_address),          // The address always comes from the ALU
+// 	.enable     (cache_stall | mem_wr),                 // Always read until hlt is asserted
+// 	.wr         (mem_wr),
+// 	.clk        (clk),
+// 	.rst        (~rst_n),
+// 	.data_valid (ram_data_valid)
+// );
 
-memory4c memory4c_instance (
-	.data_out   (ram_data_out),
-	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
-	.addr       (ram_address),          // The address always comes from the ALU
-	.enable     (cache_stall | mem_wr),                 // Always read until hlt is asserted
-	.wr         (mem_wr),
-	.clk        (clk),
-	.rst        (~rst_n),
-	.data_valid (ram_data_valid)
+ram_controller ram_controller_instance (
+	.clk                  (clk),
+	.rst_n                (rst_n),
+	.ram_busy             (ram_busy),
+	.ram_write            (mem_wr),
+	.ram_write_data       (mem_data_in),
+	.ram_write_address    (mem_alu_result),
+	.ram_data_out         (ram_data_out),
+	.i_cache_miss         (instr_cache_miss),
+	.i_cache_miss_address (instr_ram_address),
+	.i_cache_data_valid   (instr_cache_data_valid),
+	.d_cache_miss         (de_cache_miss),
+	.d_cache_miss_address (de_ram_address),
+	.d_cache_data_valid   (de_cache_data_valid)
 );
 
 cache_controller instr_cache (
@@ -156,10 +167,11 @@ cache_controller instr_cache (
 	.write              (1'b0),
 	.cache_enable       (1'b1),
 	.cache_address      (if_pc),
-	.data_in            (1'b0),
-	.memory_data_valid  (),
+	.data_in            (16'b0),
+	.memory_data        (ram_data_out),
+	.memory_data_valid  (instr_cache_data_valid),
 	.data_out           (if_instruction),
-	.cache_miss         (instr_cache_miss)
+	.cache_miss         (instr_cache_miss),
 	.memory_address     (instr_ram_address)
 );
 
@@ -169,11 +181,12 @@ cache_controller de_cache (
 	.write              (mem_wr),
 	.cache_enable       (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
 	.cache_address      (mem_alu_result),
-	.data_in            (de_cache_data_in),
-	.memory_data_valid  (),
+	.data_in            (mem_data_in),
+	.memory_data        (ram_data_out),
+	.memory_data_valid  (de_cache_data_valid),
 	.data_out           (mem_data_out),
-	.cache_miss         (de_cache_miss)
-	.write_address      (de_ram_address),
+	.cache_miss         (de_cache_miss),
+	.memory_address      (de_ram_address)
 );
 
 // cache instr_cache (
@@ -219,7 +232,7 @@ cache_controller de_cache (
 // 	.memory_data_valid          (ram_data_valid)
 // );
 
-assign de_cache_data_in = mem_wr == 1'b1 ? mem_data_in : ram_data_out;
+assign cache_stall = (mem_wr & ram_busy) | de_cache_miss;
 
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch
@@ -233,7 +246,7 @@ pc_register pc_register_instance (
 	.instruction    (ex_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
-	.stall          (if_stall | if_hlt | cache_stall),
+	.stall          (if_stall | if_hlt | cache_stall | instr_cache_miss),
 	.pc             (if_pc),
 	.pc_plus_two    (if_pc_plus_two),
 	.do_if_flush    (do_if_flush)
@@ -342,8 +355,8 @@ assign forward_alu_data = ~ex_opcode[3] |
 // Only forward data from the mem if we are doing a load
 assign forward_mem_data = (~mem_opcode[3])           |
                           (mem_opcode == OPCODE_LW)  |
-													(mem_opcode == OPCODE_PCS)  |
-													(mem_opcode == OPCODE_LHB)  |
+													(mem_opcode == OPCODE_PCS) |
+													(mem_opcode == OPCODE_LHB) |
 													(mem_opcode == OPCODE_LLB);
 
 
@@ -415,7 +428,6 @@ assign ex_alu_result = (ex_opcode == OPCODE_LHB) ? {ex_load_half_byte, ex_src_da
 											  alu_result;
 
 
-
 // Compress data for the ex_mem_register_input
 assign ex_mem_register_input[15:0]  = ex_pc_plus_two;
 assign ex_mem_register_input[31:16] = ex_src_data_2;
@@ -470,7 +482,6 @@ assign mem_reg_write_value =
 // 	.clk        (clk),
 // 	.rst        (~rst_n)
 // );
-
 
 // Compress data for the mem_wb_register_input
 assign mem_wb_register_input[15:0]  = mem_reg_write_value;

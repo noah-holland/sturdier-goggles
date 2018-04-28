@@ -1,5 +1,5 @@
 ////////////////////////////////////////////////////////////////////////////////
-// 
+//
 // Module: ram_controller
 // Author: Ryan Job (rjob@wisc.edu)
 //
@@ -110,7 +110,7 @@ dff current_state_instance[1:0] (
 //	       - Go to STATE_D_CACHE_UPDATE
 //     4) Stay in STATE_IDLE
 //
-assign next_state = 
+assign next_state =
 	state == STATE_I_CACHE_UPDATE ?
 		(memory_data_valid ? STATE_IDLE : STATE_I_CACHE_UPDATE) :
 	state == STATE_D_CACHE_UPDATE ?
@@ -122,15 +122,15 @@ assign next_state =
 				   STATE_IDLE;
 
 
-// The RAM is busy whenever not in STATE_IDLE. Thus, it's just the OR
+// The RAM is busy whenever not in STATE_IDLE. Thus, it's just the ORs
 // reduction of next_state.
-assign ram_busy = |next_state.
+assign ram_busy = |next_state;
 
 
 // We need to enable the memory when either reading from it or writing to it.
 // Reading from memory occurrs when 'next_state' is not STATE_IDLE.
 // Since STATE_IDLE is state == 0, we can use an OR reduction on 'next_state'.
-assign memory_enable = (|next_state) | memory_write;
+assign memory_enable = i_cache_miss | d_cache_miss | memory_write;
 
 
 // We need to enable memory writing when in STATE_IDLE and 'ram_write' is
@@ -167,4 +167,3 @@ assign d_cache_data_valid =
 
 
 endmodule
-

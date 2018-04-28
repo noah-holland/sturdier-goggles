@@ -190,7 +190,7 @@ module cpu_ptb();
    assign MemWrite = (DUT.mem_wr);
    // Is memory being written to, in this cycle (1 bit signal)
 
-   assign MemAddress = DUT.ram_address;
+   assign MemAddress = DUT.ram_controller_instance.memory_address;
    // If there's a memory access this cycle, this should hold the address to access memory with (for both reads and writes to memory, 16 bits)
 
    assign MemDataIn = DUT.mem_data_in;
