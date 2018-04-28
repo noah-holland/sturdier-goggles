@@ -44,7 +44,7 @@ module ram_controller (
 	input   wire    [15:0]  d_cache_miss_address,
 	output  wire            d_cache_updating,
 	output  wire            d_cache_write_data_array,
-	output  wire            d_cache_write_tag_array,
+	output  wire            d_cache_write_tag_array
 );
 
 
@@ -159,9 +159,9 @@ assign next_state =
 	(~rst_n) ? STATE_IDLE :
 	(state == STATE_UNUSED) ? STATE_IDLE :
 	((state == STATE_I_CACHE_UPDATE) & d_cache_miss) ? STATE_D_CACHE_UPDATE :
-	((state == STATE_IDLE) & ram_write)    ? STATE_IDLE :
 	((state == STATE_IDLE) & d_cache_miss) ? STATE_D_CACHE_UPDATE :
 	((state == STATE_IDLE) & i_cache_miss) ? STATE_I_CACHE_UPDATE :
+	((state == STATE_IDLE) & ram_write)    ? STATE_IDLE :
 	((state != STATE_IDLE) & return_word_plus_one[3]) ? STATE_IDLE :
 		state;
 

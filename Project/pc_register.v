@@ -95,7 +95,7 @@ word_CLA pc_offset_adder (
 dff pc_reg[15:0] (
 	.q      (pc),
 	.d      (next_pc),
-	.wen	(1'b1),
+	.wen	  (1'b1),
 	.clk    (clk),
 	.rst    (~rst_n)
 );
@@ -104,7 +104,7 @@ dff pc_reg[15:0] (
 dff flag_z (
 	.q      (z_flag),
 	.d      (next_z_flag),
-	.wen    (1'b1),
+	.wen    (|instruction),
 	.clk    (clk),
 	.rst    (~rst_n)
 );
@@ -113,7 +113,7 @@ dff flag_z (
 dff flag_v (
 	.q      (v_flag),
 	.d      (next_v_flag),
-	.wen    (1'b1),
+	.wen    (|instruction),
 	.clk    (clk),
 	.rst    (~rst_n)
 );
@@ -122,7 +122,7 @@ dff flag_v (
 dff flag_n (
 	.q      (n_flag),
 	.d      (next_n_flag),
-	.wen    (1'b1),
+	.wen    (|instruction),
 	.clk    (clk),
 	.rst    (~rst_n)
 );
@@ -194,4 +194,3 @@ assign do_if_flush = ((opcode == OPCODE_B)  & condition_met) ? 1'b1 :
 
 
 endmodule
-

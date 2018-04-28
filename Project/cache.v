@@ -43,11 +43,11 @@ module cache(
 	);
 
 	//Only output the data from cache if were reading
-	assign data_out = ~cache_enable ? 16'h0 : 
+	assign data_out = ~cache_enable ? 16'h0 :
 				data_write ? 16'h0 : data_out_internal;
 
 	//Deciding if the cache has missed
-	assign cache_miss = tag_write ? 1'b0 :
+	assign cache_miss = tag_write ? 1'b1 :
 	       (full_tag != tag_check) ? cache_enable :
 					1'b0;
 

@@ -170,7 +170,7 @@ ram_controller ram_controller_instance (
 	.d_cache_miss_address       (de_ram_address),
 	.d_cache_updating           (de_cache_updating),
 	.d_cache_write_data_array   (de_cache_write_data_array),
-	.d_cache_write_tag_array    (de_cache_write_tag_array),
+	.d_cache_write_tag_array    (de_cache_write_tag_array)
 );
 
 cache_controller instr_cache (
@@ -180,14 +180,14 @@ cache_controller instr_cache (
 	.cache_enable       (1'b1),
 	.cache_address      (if_pc),
 	.data_in            (16'b0),
-	.memory_address     (ram_data_address)
+	.memory_address     (ram_data_address),
 	.memory_data        (ram_data_out),
 	.memory_data_write  (instr_cache_write_data_array),
 	.memory_tag_write   (instr_cache_write_tag_array),
 	.miss_fixing        (instr_cache_updating),
 	.data_out           (if_instruction),
 	.cache_miss         (instr_cache_miss),
-	.miss_address       (instr_cache_miss_address)
+	.miss_address       (instr_ram_address)
 );
 
 cache_controller de_cache (
@@ -250,7 +250,7 @@ cache_controller de_cache (
 // 	.memory_data_valid          (ram_data_valid)
 // );
 
-assign cache_stall = (mem_wr & ram_busy) | de_cache_miss;
+assign cache_stall = (mem_wr & instr_cache_updating) | de_cache_updating | de_cache_miss;
 
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch
@@ -309,6 +309,7 @@ pipeline_register if_id_register_instance (
 	.stall      (if_stall | cache_stall),
 	.flush      (if_flush),
 	.clk        (clk),
+	.nop        (1'b1),
 	.opcode_in  (if_instruction[15:12]),
 	.opcode_out (id_opcode),
 	.inputs     (if_id_register_input),
@@ -401,6 +402,7 @@ pipeline_register id_ex_register_instance (
 	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
+	.nop        (1'b0),
 	.opcode_in  (id_opcode),
 	.opcode_out (ex_opcode),
 	.inputs     (id_ex_register_input),
@@ -459,6 +461,7 @@ pipeline_register ex_mem_register_instance (
 	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
+	.nop        (1'b0),
 	.opcode_in  (ex_opcode),
 	.opcode_out (mem_opcode),
 	.inputs     (ex_mem_register_input),
@@ -511,6 +514,7 @@ pipeline_register mem_wb_register_instance (
 	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
+	.nop        (1'b1),
 	.opcode_in  (mem_opcode),
 	.opcode_out (wb_opcode),
 	.inputs     (mem_wb_register_input),
