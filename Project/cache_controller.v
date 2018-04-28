@@ -18,7 +18,7 @@ module cache_controller(
 	input wire miss_fixing,
 	output wire [15:0] data_out,
 	output wire cache_miss,
-	output wire [15:0] memory_address
+	output wire [15:0] miss_address
 );
 
 
@@ -45,6 +45,7 @@ module cache_controller(
 	assign tag_write = miss_fixing ? memory_tag_write : 1'b0;
 	assign cache_in = miss_fixing ? memory_data : data_in; 
 	assign address = miss_fixing ? memory_address : cache_address;
+	assign miss_address = cache_address;
 
 
 endmodule
