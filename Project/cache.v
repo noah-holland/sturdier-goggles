@@ -15,6 +15,7 @@ module cache(
 	output wire cache_miss
 );
 
+	wire [4:0] tag;
 	wire [127:0] block_num;		//The block select we are using
 	wire [7:0] word_num,		//The word select we are using
 		   full_tag,		//The tag we are using
