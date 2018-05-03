@@ -61,11 +61,10 @@ SIMLOG:: sim_cycles          60
 
 SIMLOG:: inst_count          56
 
-SIMLOG:: dcachehit_count           2
+SIMLOG:: dcachehit_count           1
 
-SIMLOG:: icachehit_count          17
+SIMLOG:: icachehit_count          13
 
-SIMLOG:: dcachereq_count           4
+SIMLOG:: dcachereq_count           2
 
-SIMLOG:: icachereq_count          41
-
+SIMLOG:: icachereq_count          15

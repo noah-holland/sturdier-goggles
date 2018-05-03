@@ -226,11 +226,10 @@ SIMLOG:: sim_cycles         225
 
 SIMLOG:: inst_count         193
 
-SIMLOG:: dcachehit_count          12
+SIMLOG:: dcachehit_count          11
 
-SIMLOG:: icachehit_count         142
+SIMLOG:: icachehit_count         93
 
 SIMLOG:: dcachereq_count          12
 
-SIMLOG:: icachereq_count         182
-
+SIMLOG:: icachereq_count         99
