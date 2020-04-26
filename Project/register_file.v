@@ -13,11 +13,11 @@ Register register[15:0] (.clk(clk), .rst(rst), .D(DstData), .WriteReg(WriteWl),
 
 
 assign SrcData1 = SrcReg1 == 3'b0   ? 15'b0   : // If register is 0 we want to output 0
-                  SrcReg1 == DstReg ? DstData : // Bypass register if reading and writing
+                ( SrcReg1 == DstReg ) & WriteReg ? DstData : // Bypass register if reading and writing
                                       Output1;  // Otherwise output register
 
 assign SrcData2 = SrcReg2 == 3'b0   ? 15'b0   : // If register is 0 we want to output 0
-                  SrcReg2 == DstReg ? DstData : // Bypass register if reading and writing
+                ( SrcReg2 == DstReg ) & WriteReg ? DstData : // Bypass register if reading and writing
                                       Output2;  // Otherwise output register
 
 endmodule

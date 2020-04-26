@@ -53,7 +53,6 @@ localparam OPCODE_HLT    = 4'hF;
 // Line used to control the hlt DFF
 wire            old_hlt;
 
-
 wire    [15:0]  if_instruction;
 wire    [15:0]  if_pc;
 wire    [15:0]  if_pc_plus_two;
@@ -111,7 +110,147 @@ wire    [3:0]   wb_opcode;
 wire    [3:0]   wb_dest_reg;
 wire    [15:0]  wb_reg_write_value;
 
+wire            forward_mem_data;
+wire            forward_alu_data;
 
+wire            cache_stall;
+wire    [15:0]  ram_data_out;
+wire    [15:0]  ram_data_address;
+
+wire            instr_cache_miss;
+wire    [15:0]  instr_ram_address;
+wire            instr_cache_updating;
+wire            instr_cache_write_data_array;
+wire            instr_cache_write_tag_array;
+
+wire            de_cache_miss;
+wire    [15:0]  de_ram_address;
+wire            de_cache_updating;
+wire            de_cache_write_data_array;
+wire            de_cache_write_tag_array;
+
+wire    [15:0]  alu_result;
+
+  //////////////////////////////////////////////////////////////////////////////
+ // RAM, Instruction Cache, and Data Cache
+////////////////////////////////////////////////////////////////////////////////
+
+// // Get address from the Cache Update FSM when stalling from a cache miss
+// assign ram_address = cache_stall ? fsm_update_address : mem_alu_result;
+//
+// memory4c memory4c_instance (
+// 	.data_out   (ram_data_out),
+// 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
+// 	.addr       (ram_address),          // The address always comes from the ALU
+// 	.enable     (cache_stall | mem_wr),                 // Always read until hlt is asserted
+// 	.wr         (mem_wr),
+// 	.clk        (clk),
+// 	.rst        (~rst_n),
+// 	.data_valid (ram_data_valid)
+// );
+
+ram_controller ram_controller_instance (
+	.clk                        (clk),
+	.rst_n                      (rst_n),
+
+	.ram_write                  (mem_wr),
+	.ram_write_data             (mem_data_in),
+	.ram_write_address          (mem_alu_result),
+
+	.ram_data_out               (ram_data_out),
+	.ram_data_address           (ram_data_address),
+
+	.i_cache_miss               (instr_cache_miss),
+	.i_cache_miss_address       (instr_ram_address),
+	.i_cache_updating           (instr_cache_updating),
+	.i_cache_write_data_array   (instr_cache_write_data_array),
+	.i_cache_write_tag_array    (instr_cache_write_tag_array),
+
+	.d_cache_miss               (de_cache_miss),
+	.d_cache_miss_address       (de_ram_address),
+	.d_cache_updating           (de_cache_updating),
+	.d_cache_write_data_array   (de_cache_write_data_array),
+	.d_cache_write_tag_array    (de_cache_write_tag_array)
+);
+
+cache_controller instr_cache (
+	.clk                (clk),
+	.rst_n              (rst_n),
+	.write              (1'b0),
+	.cache_enable       (1'b1),
+	.cache_address      (if_pc),
+	.data_in            (16'b0),
+	.memory_address     (ram_data_address),
+	.memory_data        (ram_data_out),
+	.memory_data_write  (instr_cache_write_data_array),
+	.memory_tag_write   (instr_cache_write_tag_array),
+	.miss_fixing        (instr_cache_updating),
+	.data_out           (if_instruction),
+	.cache_miss         (instr_cache_miss),
+	.miss_address       (instr_ram_address)
+);
+
+cache_controller de_cache (
+	.clk                (clk),
+	.rst_n              (rst_n),
+	.write              (mem_wr),
+	.cache_enable       (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
+	.cache_address      (mem_alu_result),
+	.data_in            (mem_data_in),
+	.memory_address     (ram_data_address),
+	.memory_data        (ram_data_out),
+	.memory_data_write  (de_cache_write_data_array),
+	.memory_tag_write   (de_cache_write_tag_array),
+	.miss_fixing        (de_cache_updating),
+	.data_out           (mem_data_out),
+	.cache_miss         (de_cache_miss),
+	.miss_address       (de_ram_address)
+);
+
+// cache instr_cache (
+// 	.clk            (clk),
+// 	.rst_n          (rst_n),
+// 	.tag_write      (instr_cache_write_tag),
+// 	.data_write     (instr_cache_write_data),
+// 	.cache_enable   (1'b1),
+// 	.read_address   (if_pc),
+// 	.write_address  (ram_address),
+// 	.data_in        (ram_data_out),
+// 	.data_out       (if_instruction),
+// 	.cache_miss     (instr_cache_miss)
+// );
+//
+// cache de_cache (
+// 	.clk            (clk),
+// 	.rst_n          (rst_n),
+// 	.tag_write      (de_cache_write_tag),
+// 	.data_write     (de_cache_write_data),
+// 	.cache_enable   (mem_opcode[3] & ~mem_opcode[2] & ~mem_opcode[1]),
+// 	.read_address   (mem_alu_result),
+// 	.write_address  (ram_address),
+// 	.data_in        (de_cache_data_in),
+// 	.data_out       (mem_data_out),
+// 	.cache_miss     (de_cache_miss)
+// );
+//
+//
+// cache_fill_fsm cache_fill_fsm_instance  (
+// 	.clk                        (clk),
+// 	.rst_n                      (rst_n),
+// 	.fsm_busy                   (cache_stall),
+// 	.i_cache_miss_detected      (instr_cache_miss),
+// 	.i_cache_miss_address       (if_pc),
+// 	.write_i_cache_data_array   (instr_cache_write_data),
+// 	.write_i_cache_tag_array    (instr_cache_write_tag),
+// 	.d_cache_miss_detected      (de_cache_miss),
+// 	.d_cache_miss_address       (mem_alu_result),
+// 	.write_d_cache_data_array   (de_cache_write_data),
+// 	.write_d_cache_tag_array    (de_cache_write_tag),
+// 	.memory_address             (fsm_update_address),
+// 	.memory_data_valid          (ram_data_valid)
+// );
+
+assign cache_stall = (mem_wr & instr_cache_updating) | de_cache_updating | de_cache_miss;
 
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch
@@ -125,7 +264,7 @@ pc_register pc_register_instance (
 	.instruction    (ex_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
-	.stall          (if_stall | if_hlt),
+	.stall          (if_stall | if_hlt | cache_stall | instr_cache_miss),
 	.pc             (if_pc),
 	.pc_plus_two    (if_pc_plus_two),
 	.do_if_flush    (do_if_flush)
@@ -143,26 +282,19 @@ assign if_hlt = &if_instruction[15:12];
 assign if_stall = (ex_opcode == OPCODE_B)    ? 1'b1 :
                   (ex_opcode == OPCODE_BR)   ? 1'b1 :
                   (ex_opcode == OPCODE_LW)   ? 1'b1 :
-                  (ex_opcode == OPCODE_LLB)  ? 1'b1 :
-                  (ex_opcode == OPCODE_LHB)  ? 1'b1 :
-                  (mem_opcode == OPCODE_B)   ? 1'b1 :
-                  (mem_opcode == OPCODE_BR)  ? 1'b1 :
-                  (mem_opcode == OPCODE_LW)  ? 1'b1 :
-                  (mem_opcode == OPCODE_LLB) ? 1'b1 :
-                  (mem_opcode == OPCODE_LHB) ? 1'b1 :
                                                1'b0;
 
 // The single cycle instruction memory
 // The memory module was provided to us
-memory1c memory1c_instruction_instance (
-	.data_out	(if_instruction),
-	.data_in    (16'h0000),                 // Don't need to write ever
-	.addr       (if_pc),
-	.enable     (~old_hlt),                 // Always read until hlt is asserted
-	.wr         (1'b0),                     // Don't need to write ever
-	.clk        (clk),
-	.rst        (~rst_n)
-);
+// memory1c memory1c_instruction_instance (
+// 	.data_out	  (if_instruction),
+// 	.data_in    (16'h0000),                 // Don't need to write ever
+// 	.addr       (if_pc),
+// 	.enable     (~old_hlt),                 // Always read until hlt is asserted
+// 	.wr         (1'b0),                     // Don't need to write ever
+// 	.clk        (clk),
+// 	.rst        (~rst_n)
+// );
 
 // We want to flush the if register if theres a global reset, or we're told to
 // by the branching logic
@@ -174,9 +306,10 @@ assign if_id_register_input[63:32] = 32'b0;
 
 // The IF/ID Pipeline Register
 pipeline_register if_id_register_instance (
-	.stall      (if_stall),
+	.stall      (if_stall | cache_stall),
 	.flush      (if_flush),
 	.clk        (clk),
+	.nop        (1'b1),
 	.opcode_in  (if_instruction[15:12]),
 	.opcode_out (id_opcode),
 	.inputs     (if_id_register_input),
@@ -233,13 +366,17 @@ register_file register_file_instance (
 );
 
 // Only forward data from the alu if we are doing an arithmetic operation
-assign forward_alu_data = ~ex_opcode[3];
+assign forward_alu_data = ~ex_opcode[3] |
+							(ex_opcode == OPCODE_PCS) |
+							(ex_opcode == OPCODE_LHB) |
+							(ex_opcode == OPCODE_LLB);
 
 // Only forward data from the mem if we are doing a load
 assign forward_mem_data = (~mem_opcode[3])           |
                           (mem_opcode == OPCODE_LW)  |
-                          (mem_opcode == OPCODE_LHB) |
-                          (mem_opcode == OPCODE_LLB);
+													(mem_opcode == OPCODE_PCS) |
+													(mem_opcode == OPCODE_LHB) |
+													(mem_opcode == OPCODE_LLB);
 
 
 // Data forward to id_src_reg_1
@@ -262,9 +399,10 @@ assign id_ex_register_input[63:48] = id_instruction;
 
 // The ID/EX Pipeline Register
 pipeline_register id_ex_register_instance (
-	.stall      (1'b0),
+	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
+	.nop        (1'b0),
 	.opcode_in  (id_opcode),
 	.opcode_out (ex_opcode),
 	.inputs     (id_ex_register_input),
@@ -300,9 +438,14 @@ alu alu_instance (
 	.src_data_2 (ex_src_data_2),           // The register value from src_reg_2
 	.immediate  (ex_alu_immediate),        // The 4-bit immediate value
 	.opcode     (ex_opcode),
-	.alu_result (ex_alu_result),
+	.alu_result (alu_result),
 	.flags      (ex_alu_flags)
 );
+
+assign ex_alu_result = (ex_opcode == OPCODE_LHB) ? {ex_load_half_byte, ex_src_data_2[7:0]}  :
+											 (ex_opcode == OPCODE_LLB) ? {ex_src_data_2[15:8], ex_load_half_byte} :
+											 (ex_opcode == OPCODE_PCS) ? ex_pc_plus_two                           :
+											  alu_result;
 
 
 // Compress data for the ex_mem_register_input
@@ -311,14 +454,14 @@ assign ex_mem_register_input[31:16] = ex_src_data_2;
 assign ex_mem_register_input[47:32] = ex_alu_result;
 assign ex_mem_register_input[50:48] = ex_alu_flags;
 assign ex_mem_register_input[54:51] = ex_dest_reg;
-assign ex_mem_register_input[62:55] = ex_load_half_byte;
-assign ex_mem_register_input[63] = 1'b0;
+assign ex_mem_register_input[63:55] = 1'b0;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
-	.stall      (1'b0),
+	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
+	.nop        (1'b0),
 	.opcode_in  (ex_opcode),
 	.opcode_out (mem_opcode),
 	.inputs     (ex_mem_register_input),
@@ -346,24 +489,20 @@ assign mem_wr = (mem_opcode == OPCODE_SW) ? 1'b1 : 1'b0;
 // that's why it's the default case
 assign mem_reg_write_value =
 	(mem_opcode == OPCODE_LW)  ? mem_data_out :
-	(mem_opcode == OPCODE_LHB) ? {mem_load_half_byte, mem_data_in[7:0]} :
-	(mem_opcode == OPCODE_LLB) ? {mem_data_in[15:8], mem_load_half_byte} :
-	(mem_opcode == OPCODE_PCS) ? mem_pc_plus_two :
 	                             mem_alu_result;
 
 
 // The single cycle data memory
 // The memory module was provided to us
-memory1c memory1c_data_instance (
-	.data_out   (mem_data_out),
-	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
-	.addr       (mem_alu_result),       // The address always comes from the ALU
-	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
-	.wr         (mem_wr),
-	.clk        (clk),
-	.rst        (~rst_n)
-);
-
+// memory1c memory1c_data_instance (
+// 	.data_out   (mem_data_out),
+// 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
+// 	.addr       (mem_alu_result),       // The address always comes from the ALU
+// 	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
+// 	.wr         (mem_wr),
+// 	.clk        (clk),
+// 	.rst        (~rst_n)
+// );
 
 // Compress data for the mem_wb_register_input
 assign mem_wb_register_input[15:0]  = mem_reg_write_value;
@@ -372,9 +511,10 @@ assign mem_wb_register_input[63:20] = 44'b0;
 
 // The MEM/WB Pipeline Register
 pipeline_register mem_wb_register_instance (
-	.stall      (1'b0),
+	.stall      (cache_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
+	.nop        (1'b1),
 	.opcode_in  (mem_opcode),
 	.opcode_out (wb_opcode),
 	.inputs     (mem_wb_register_input),
