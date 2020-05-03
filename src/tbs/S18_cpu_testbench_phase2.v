@@ -1,4 +1,4 @@
-module cpu_ptb();
+module cpu_p2tb();
 
 
    wire [15:0] PC;
