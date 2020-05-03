@@ -1,6 +1,11 @@
 # Disable any work directory
 work/
 
+# Ignore tb files
+*.plog
+*.ptrace
+loadfile_all.img
+
 # Ignore any modelsim project files
 *.mpf
 *.mti
@@ -13,3 +18,10 @@ dump.vcd
 # Ignore VIM swap files
 *.swp
 
+# Ignore any Vivado files
+xsim*
+
+webtalk*.jou
+webtalk*.log
+xelab.*
+xvlog.*
