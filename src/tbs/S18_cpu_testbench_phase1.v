@@ -1,4 +1,4 @@
-module cpu_tb();
+module cpu_p1tb();
 
 
    wire [15:0] PC;
