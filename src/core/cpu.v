@@ -28,7 +28,28 @@ module cpu (
 	input   wire            clk,
 	input   wire            rst_n,
 	output  wire            hlt,
-	output  wire    [15:0]  pc
+	output  wire    [15:0]  pc,
+
+	// AXI4LITE interface
+	output  wire    [31:0]  M_AXI_AWADDR,
+	output  wire    [2:0]   M_AXI_AWPROT,
+	output  wire            M_AXI_AWVALID,
+	input   wire            M_AXI_AWREADY,
+	output  wire    [31:0]  M_AXI_WDATA,
+	output  wire    [3:0]   M_AXI_WSTRB,
+	output  wire            M_AXI_WVALID,
+	input   wire            M_AXI_WREADY,
+	input   wire    [1:0]   M_AXI_BRESP,
+	input   wire            M_AXI_BVALID,
+	output  wire            M_AXI_BREADY,
+	output  wire    [31:0]  M_AXI_ARADDR,
+	output  wire    [2:0]   M_AXI_ARPROT,
+	output  wire            M_AXI_ARVALID,
+	input   wire            M_AXI_ARREADY,
+	input   wire    [31:0]  M_AXI_RDATA,
+	input   wire    [1:0]   M_AXI_RRESP,
+	input   wire            M_AXI_RVALID,
+	output  wire            M_AXI_RREADY
 );
 
 
@@ -115,6 +136,11 @@ wire            forward_alu_data;
 
 wire    [15:0]  alu_result;
 
+wire            init_axi;
+wire            axi_error;
+wire            axi_done;
+reg             axi_stall;
+
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,7 +153,7 @@ pc_register pc_register_instance (
 	.instruction    (ex_instruction),
 	.branch_reg_val (ex_src_data_1),
 	.flags          (ex_alu_flags),
-	.stall          (if_stall | if_hlt),
+	.stall          (if_stall | if_hlt | axi_stall),
 	.pc             (if_pc),
 	.pc_plus_two    (if_pc_plus_two),
 	.do_if_flush    (do_if_flush)
@@ -169,7 +195,7 @@ assign if_id_register_input[63:32] = 32'b0;
 
 // The IF/ID Pipeline Register
 pipeline_register if_id_register_instance (
-	.stall      (if_stall),
+	.stall      (if_stall | axi_stall),
 	.flush      (if_flush),
 	.clk        (clk),
 	.nop        (1'b1),
@@ -262,10 +288,10 @@ assign id_ex_register_input[63:48] = id_instruction;
 
 // The ID/EX Pipeline Register
 pipeline_register id_ex_register_instance (
-	.stall      (1'b0),
+	.stall      (axi_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
-	.nop        (1'b0),
+	.nop        (1'b1),
 	.opcode_in  (id_opcode),
 	.opcode_out (ex_opcode),
 	.inputs     (id_ex_register_input),
@@ -321,10 +347,10 @@ assign ex_mem_register_input[63:55] = 1'b0;
 
 // The EX/MEM Pipeline Register
 pipeline_register ex_mem_register_instance (
-	.stall      (1'b0),
+	.stall      (axi_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
-	.nop        (1'b0),
+	.nop        (1'b1),
 	.opcode_in  (ex_opcode),
 	.opcode_out (mem_opcode),
 	.inputs     (ex_mem_register_input),
@@ -354,17 +380,57 @@ assign mem_reg_write_value =
 	(mem_opcode == OPCODE_LW)  ? mem_data_out :
 	                             mem_alu_result;
 
+assign init_axi = (mem_opcode == OPCODE_SW) || (mem_opcode == OPCODE_LW);
 
+
+always @ (posedge clk or negedge rst_n) begin
+	if(init_axi)
+		axi_stall <= 1'b1;
+	else if(axi_done || ~rst_n)
+		axi_stall <=1'b0;
+end
 // The single cycle data memory
 // The memory module was provided to us
-memory1c memory1c_data_instance (
-	.data_out   (mem_data_out),
-	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
-	.addr       (mem_alu_result),       // The address always comes from the ALU
-	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
-	.wr         (mem_wr),
-	.clk        (clk),
-	.rst        (~rst_n)
+// memory1c memory1c_data_instance (
+// 	.data_out   (mem_data_out),
+// 	.data_in    (mem_data_in),          // src_reg_2 is the only thing stored
+// 	.addr       (mem_alu_result),       // The address always comes from the ALU
+// 	.enable     (mem_opcode[3]),           // Always read until hlt is asserted
+// 	.wr         (mem_wr),
+// 	.clk        (clk),
+// 	.rst        (~rst_n)
+// );
+
+axi4_lite_master axi_master (
+	.cpu_rw_addr_i(mem_alu_result),
+	.cpu_w_data_i(mem_data_in),
+	.cpu_r_addr_o(),
+	.cpu_r_data_o(mem_data_out),
+	.rw(mem_wr),
+	.INIT_AXI_TXN(init_axi),
+	.ERROR(axi_error),
+	.TXN_DONE(axi_done),
+	.M_AXI_ACLK(clk),
+	.M_AXI_ARESETN(rst_n),
+	.M_AXI_AWADDR(M_AXI_AWADDR),
+	.M_AXI_AWPROT(M_AXI_AWPROT),
+	.M_AXI_AWVALID(M_AXI_AWVALID),
+	.M_AXI_AWREADY(M_AXI_AWREADY),
+	.M_AXI_WDATA(M_AXI_WDATA),
+	.M_AXI_WSTRB(M_AXI_WSTRB),
+	.M_AXI_WVALID(M_AXI_WVALID),
+	.M_AXI_WREADY(M_AXI_WREADY),
+	.M_AXI_BRESP(M_AXI_BRESP),
+	.M_AXI_BVALID(M_AXI_BVALID),
+	.M_AXI_BREADY(M_AXI_BREADY),
+	.M_AXI_ARADDR(M_AXI_ARADDR),
+	.M_AXI_ARPROT(M_AXI_ARPROT),
+	.M_AXI_ARVALID(M_AXI_ARVALID),
+	.M_AXI_ARREADY(M_AXI_ARREADY),
+	.M_AXI_RDATA(M_AXI_RDATA),
+	.M_AXI_RRESP(M_AXI_RRESP),
+	.M_AXI_RVALID(M_AXI_RVALID),
+	.M_AXI_RREADY(M_AXI_RREADY)
 );
 
 // Compress data for the mem_wb_register_input
@@ -374,7 +440,7 @@ assign mem_wb_register_input[63:20] = 44'b0;
 
 // The MEM/WB Pipeline Register
 pipeline_register mem_wb_register_instance (
-	.stall      (1'b0),
+	.stall      (axi_stall),
 	.flush      (~rst_n),
 	.clk        (clk),
 	.nop        (1'b1),
