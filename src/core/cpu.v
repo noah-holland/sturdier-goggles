@@ -137,9 +137,7 @@ wire            forward_alu_data;
 wire    [15:0]  alu_result;
 
 wire            init_axi;
-wire            axi_error;
-wire            axi_done;
-reg             axi_stall;
+wire            axi_stall;
 
   //////////////////////////////////////////////////////////////////////////////
  // Pipeline Stage 1: Instrucgtion Fetch
@@ -382,13 +380,6 @@ assign mem_reg_write_value =
 
 assign init_axi = (mem_opcode == OPCODE_SW) || (mem_opcode == OPCODE_LW);
 
-
-always @ (posedge clk or negedge rst_n) begin
-	if(init_axi)
-		axi_stall <= 1'b1;
-	else if(axi_done || ~rst_n)
-		axi_stall <=1'b0;
-end
 // The single cycle data memory
 // The memory module was provided to us
 // memory1c memory1c_data_instance (
@@ -408,8 +399,7 @@ axi4_lite_master axi_master (
 	.cpu_r_data_o(mem_data_out),
 	.rw(mem_wr),
 	.INIT_AXI_TXN(init_axi),
-	.ERROR(axi_error),
-	.TXN_DONE(axi_done),
+	.BUSY(axi_stall),
 	.M_AXI_ACLK(clk),
 	.M_AXI_ARESETN(rst_n),
 	.M_AXI_AWADDR(M_AXI_AWADDR),

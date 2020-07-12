@@ -17,14 +17,11 @@
     input wire [15:0] cpu_w_data_i,
     output reg [15:0] cpu_r_addr_o,
     output reg [15:0] cpu_r_data_o,
+    output wire BUSY,
     input wire rw,
 
 		// Initiate AXI transactions
 		input wire  INIT_AXI_TXN,
-		// Asserts when ERROR is detected
-		output reg  ERROR,
-		// Asserts when AXI transactions is complete
-		output reg  TXN_DONE,
 		// AXI clock signal
 		input wire  M_AXI_ACLK,
 		// AXI active low reset signal
@@ -134,6 +131,7 @@
 	reg  	init_txn_edge;
 	wire  	init_txn_pulse;
 	reg txn_rw;
+	reg txn_active;
 
   reg [C_M_AXI_ADDR_WIDTH-1:0]read_addr;
 
@@ -159,6 +157,7 @@
 	assign M_AXI_RREADY	= axi_rready;
 	//Example design I/O
 	assign init_txn_pulse	= (!init_txn_ff2) && init_txn_ff;
+	assign BUSY = txn_active;
 
 
 	//Generate a pulse to initiate AXI transaction.
@@ -419,7 +418,7 @@
           read_issued <= 1'b0;
           write_issued <= 1'b0;
           read_addr <= 0;
-	        ERROR <= 1'b0;
+	        txn_active <= 1'b0;
 	      end
 	    else
 	      begin
@@ -432,11 +431,10 @@
 	            if ( init_txn_pulse == 1'b1 )
 	              begin
 	                mst_exec_state  <= txn_rw ? INIT_WRITE : INIT_READ;
-	                ERROR <= 1'b0;
+	                txn_active <= 1'b1;
 	              end
 	            else
 	              begin
-                  TXN_DONE <= 1'b0;
 	                mst_exec_state  <= IDLE;
 	              end
 
@@ -447,7 +445,7 @@
                 begin
                   mst_exec_state <= IDLE;
                   write_issued <= 1'b0;
-                  TXN_DONE <= 1'b1;
+	              txn_active <= 1'b0;
                 end
               else
                 begin
@@ -470,8 +468,8 @@
 	             if (axi_rready)
 	               begin
 	                 mst_exec_state <= IDLE;
+	                 txn_active <= 1'b0;
                    read_issued <= 1'b0;
-                   TXN_DONE <= 1'b1;
 	               end
 	             else
 	               begin
